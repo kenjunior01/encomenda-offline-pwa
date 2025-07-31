@@ -155,45 +155,49 @@ export const NewOrder: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo *</Label>
+                  <Label htmlFor="name" className="text-base font-medium">Nome Completo *</Label>
                   <Input
                     id="name"
                     value={customerData.name}
                     onChange={(e) => setCustomerData(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Digite o nome do cliente"
+                    className="text-base min-h-[44px]"
                     required
                   />
                 </div>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone *</Label>
+                  <Label htmlFor="phone" className="text-base font-medium">Telefone *</Label>
                   <div className="relative">
-                    <Phone className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+                    <Phone className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
                     <Input
                       id="phone"
                       type="tel"
                       value={customerData.phone}
                       onChange={(e) => setCustomerData(prev => ({ ...prev, phone: e.target.value }))}
                       placeholder="(11) 99999-9999"
-                      className="pl-10"
+                      className="pl-12 text-base min-h-[44px]"
                       required
                     />
                   </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">Localização *</Label>
-                <div className="relative">
-                  <MapPin className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-                  <Textarea
-                    id="location"
-                    value={customerData.location}
-                    onChange={(e) => setCustomerData(prev => ({ ...prev, location: e.target.value }))}
-                    placeholder="Endereço completo ou ponto de referência"
-                    className="pl-10"
-                    required
-                  />
+                
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
+                  <div className="relative">
+                    <MapPin className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
+                    <Textarea
+                      id="location"
+                      value={customerData.location}
+                      onChange={(e) => setCustomerData(prev => ({ ...prev, location: e.target.value }))}
+                      placeholder="Endereço completo ou ponto de referência"
+                      className="pl-12 text-base min-h-[88px] resize-none"
+                      required
+                      rows={3}
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -205,21 +209,23 @@ export const NewOrder: React.FC = () => {
             onProductsChange={setSelectedProducts}
           />
 
-          {/* Botões de Ação */}
-          <div className="flex gap-4 justify-end">
+          {/* Botões de Ação - Mobile Otimizado */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-end">
             <Button 
               type="button" 
               variant="outline" 
               onClick={() => navigate('/')}
+              className="w-full sm:w-auto order-2 sm:order-1"
             >
               Cancelar
             </Button>
             <Button 
               type="submit" 
               disabled={isSubmitting || selectedProducts.length === 0}
-              className="flex items-center gap-2"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto order-1 sm:order-2 min-h-[44px] text-base font-medium"
+              size="lg"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-5 w-5" />
               {isSubmitting ? 'Criando...' : 'Criar Encomenda & Gerar PDF'}
             </Button>
           </div>

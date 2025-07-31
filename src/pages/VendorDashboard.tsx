@@ -1,37 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { DepartmentCard } from '@/components/DepartmentCard';
+import { InstallPrompt } from '@/components/InstallPrompt';
 import { DepartmentType } from '@/utils/departmentThemes';
-import { Plus, LogOut, History } from 'lucide-react';
+import { Plus, LogOut, History, Smartphone } from 'lucide-react';
 
 export const VendorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentType | null>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   const departments: DepartmentType[] = ['eletrodomesticos', 'alimentacao', 'cosmeticos'];
+
+  useEffect(() => {
+    // Mostrar prompt de instalação apenas uma vez por sessão
+    const hasShownPrompt = sessionStorage.getItem('hasShownInstallPrompt');
+    if (!hasShownPrompt && 'serviceWorker' in navigator) {
+      setShowInstallPrompt(true);
+      sessionStorage.setItem('hasShownInstallPrompt', 'true');
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-6xl mx-auto">
+        {/* Prompt de Instalação Mobile */}
+        {showInstallPrompt && (
+          <div className="mb-6">
+            <InstallPrompt onClose={() => setShowInstallPrompt(false)} />
+          </div>
+        )}
+
         {/* Header */}
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle className="text-2xl">
-                  Olá, {user?.username}! 👋
-                </CardTitle>
-                <p className="text-muted-foreground">
-                  Bem-vindo ao sistema de encomendas
-                </p>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <CardTitle className="text-2xl">
+                    Olá, {user?.username}! 👋
+                  </CardTitle>
+                  <p className="text-muted-foreground">
+                    Bem-vindo ao sistema de encomendas
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowInstallPrompt(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    <span className="hidden sm:inline">Instalar App</span>
+                    <span className="sm:hidden">App Mobile</span>
+                  </Button>
+                  <Button variant="outline" onClick={logout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sair
+                  </Button>
+                </div>
               </div>
-              <Button variant="outline" onClick={logout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sair
-              </Button>
-            </div>
           </CardHeader>
         </Card>
 

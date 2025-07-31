@@ -123,56 +123,60 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <div className="relative">
-                <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar produtos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              
-              {searchTerm && filteredProducts.length > 0 && (
-                <div className="mt-2 border rounded-lg max-h-32 overflow-y-auto">
-                  {filteredProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className={`p-2 cursor-pointer hover:bg-accent transition-colors ${
-                        selectedProductId === product.id ? 'bg-accent' : ''
-                      }`}
-                      onClick={() => {
-                        setSelectedProductId(product.id!);
-                        setSearchTerm(product.name);
-                      }}
-                    >
-                      <div className="font-medium">{product.name}</div>
-                      {product.code && (
-                        <div className="text-xs text-muted-foreground">{product.code}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+          <div className="flex flex-col gap-4">
+            {/* Busca de produtos */}
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+              <Input
+                placeholder="Buscar produtos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 text-base" // text-base para melhor legibilidade no mobile
+              />
             </div>
             
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="Qtd"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                min="1"
-                className="w-20"
-              />
+            {/* Lista de produtos filtrados - Mobile friendly */}
+            {searchTerm && filteredProducts.length > 0 && (
+              <div className="border rounded-lg max-h-40 overflow-y-auto">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className={`p-3 cursor-pointer hover:bg-accent transition-colors border-b last:border-b-0 ${
+                      selectedProductId === product.id ? 'bg-accent' : ''
+                    }`}
+                    onClick={() => {
+                      setSelectedProductId(product.id!);
+                      setSearchTerm(product.name);
+                    }}
+                  >
+                    <div className="font-medium text-base">{product.name}</div>
+                    {product.code && (
+                      <div className="text-sm text-muted-foreground">{product.code}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Quantidade e botão adicionar - Mobile otimizado */}
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  placeholder="Quantidade"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  min="1"
+                  className="text-base text-center font-medium"
+                />
+              </div>
               <Button 
                 onClick={addToOrder} 
                 disabled={!selectedProductId || !quantity}
-                className="flex-1"
+                className="flex-2 min-w-[120px] text-base font-medium"
+                size="lg"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-5 w-5 mr-2" />
                 Adicionar
               </Button>
             </div>
@@ -183,70 +187,107 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
       {/* Lista de Encomenda (Livro de Encomendas) */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
+          <div className="flex flex-col gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <Package className="h-5 w-5" />
-              Livro de Encomendas ({orderList.length} produtos)
+              Livro de Encomendas ({orderList.length})
             </CardTitle>
-            <div className="flex gap-4 text-sm">
-              <Badge variant="outline" className="flex items-center gap-1">
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="outline" className="flex items-center gap-1 text-xs">
                 <Box className="h-3 w-3" />
                 {totalCaixas} caixas
               </Badge>
-              <Badge variant="outline" className="flex items-center gap-1">
+              <Badge variant="outline" className="flex items-center gap-1 text-xs">
                 <Package className="h-3 w-3" />
                 {totalEmbalagens} embalagens
               </Badge>
-              <Badge variant="secondary">
-                {totalItems} itens total
+              <Badge variant="secondary" className="text-xs">
+                {totalItems} itens
               </Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {orderList.length > 0 ? (
-            <div className="border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">#</TableHead>
-                    <TableHead>Produto</TableHead>
-                    <TableHead className="w-24 text-center">Quantidade</TableHead>
-                    <TableHead className="w-16"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orderList.map((item, index) => (
-                    <TableRow key={item.productId}>
-                      <TableCell className="font-medium text-muted-foreground">
-                        {index + 1}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {item.productName}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
-                          min="1"
-                          className="w-20 text-center"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeFromOrder(item.productId)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+            <div className="space-y-3">
+              {/* Versão Mobile - Cards */}
+              <div className="block md:hidden space-y-3">
+                {orderList.map((item, index) => (
+                  <div key={item.productId} className="border rounded-lg p-4 bg-card">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-muted-foreground">#{index + 1}</span>
+                        </div>
+                        <h4 className="font-medium text-base leading-tight">{item.productName}</h4>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeFromOrder(item.productId)}
+                        className="text-destructive hover:text-destructive ml-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Quantidade:</span>
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                        min="1"
+                        className="w-20 text-center text-base font-medium"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Versão Desktop - Tabela */}
+              <div className="hidden md:block border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Produto</TableHead>
+                      <TableHead className="w-32 text-center">Quantidade</TableHead>
+                      <TableHead className="w-16"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {orderList.map((item, index) => (
+                      <TableRow key={item.productId}>
+                        <TableCell className="font-medium text-muted-foreground">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {item.productName}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            min="1"
+                            className="w-24 text-center mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeFromOrder(item.productId)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
