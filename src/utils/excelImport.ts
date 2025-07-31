@@ -15,16 +15,22 @@ export const importProductsFromFile = (
 ): Promise<Product[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        let workbook;
+        if (file.name.endsWith('.csv')) {
+          // Para CSV, SheetJS pode ler diretamente o texto
+          const csvData = e.target?.result as string;
+          workbook = XLSX.read(csvData, { type: 'string' });
+        } else {
+          // Para xlsx/xls, usar ArrayBuffer
+          const data = e.target?.result as ArrayBuffer;
+          workbook = XLSX.read(data, { type: 'array' });
+        }
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
         const jsonData: ImportedProduct[] = XLSX.utils.sheet_to_json(worksheet);
-        
         const products: Product[] = jsonData.map(item => ({
           name: item.name || '',
           code: item.code,
@@ -34,21 +40,20 @@ export const importProductsFromFile = (
           department,
           createdAt: new Date()
         })).filter(product => product.name.trim() !== '');
-        
         resolve(products);
       } catch (error) {
-        reject(new Error('Erro ao processar arquivo: ' + error));
+        reject(new Error('Erro ao processar arquivo: ' + (error instanceof Error ? error.message : String(error))));
       }
     };
-    
+
     reader.onerror = () => {
       reject(new Error('Erro ao ler arquivo'));
     };
-    
+
     if (file.name.endsWith('.csv')) {
       reader.readAsText(file);
     } else {
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
     }
   });
 };
