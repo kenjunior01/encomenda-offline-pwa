@@ -52,16 +52,35 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				sidebar: {
-					DEFAULT: 'hsl(var(--sidebar-background))',
-					foreground: 'hsl(var(--sidebar-foreground))',
-					primary: 'hsl(var(--sidebar-primary))',
-					'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-					accent: 'hsl(var(--sidebar-accent))',
-					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-					border: 'hsl(var(--sidebar-border))',
-					ring: 'hsl(var(--sidebar-ring))'
+				// Cores temáticas dos departamentos
+				eletro: {
+					primary: 'hsl(var(--eletro-primary))',
+					secondary: 'hsl(var(--eletro-secondary))',
+					accent: 'hsl(var(--eletro-accent))'
+				},
+				alimentacao: {
+					primary: 'hsl(var(--alimentacao-primary))',
+					secondary: 'hsl(var(--alimentacao-secondary))',
+					accent: 'hsl(var(--alimentacao-accent))'
+				},
+				cosmeticos: {
+					primary: 'hsl(var(--cosmeticos-primary))',
+					secondary: 'hsl(var(--cosmeticos-secondary))',
+					accent: 'hsl(var(--cosmeticos-accent))'
 				}
+			},
+			backgroundImage: {
+				'gradient-eletro': 'var(--gradient-eletro)',
+				'gradient-alimentacao': 'var(--gradient-alimentacao)',
+				'gradient-cosmeticos': 'var(--gradient-cosmeticos)'
+			},
+			boxShadow: {
+				'eletro': 'var(--shadow-eletro)',
+				'alimentacao': 'var(--shadow-alimentacao)',
+				'cosmeticos': 'var(--shadow-cosmeticos)'
+			},
+			transitionTimingFunction: {
+				'smooth': 'var(--transition-smooth)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
