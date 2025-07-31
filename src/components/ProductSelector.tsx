@@ -3,13 +3,20 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { db, Product } from '@/lib/database';
 import { DepartmentType } from '@/utils/departmentThemes';
-import { Search, Plus, Minus } from 'lucide-react';
+import { Search, Plus, Trash2, Package, Box } from 'lucide-react';
 
 interface ProductSelectorProps {
   department: DepartmentType;
   onProductsChange: (products: { productId: number; productName: string; quantity: number }[]) => void;
+}
+
+interface OrderItem {
+  productId: number;
+  productName: string;
+  quantity: number;
 }
 
 export const ProductSelector: React.FC<ProductSelectorProps> = ({
@@ -18,7 +25,9 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProducts, setSelectedProducts] = useState<Map<number, number>>(new Map());
+  const [orderList, setOrderList] = useState<OrderItem[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [quantity, setQuantity] = useState('1');
 
   useEffect(() => {
     loadProducts();
@@ -39,92 +48,217 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
     );
   }, [products, searchTerm]);
 
-  const updateProductQuantity = (productId: number, productName: string, change: number) => {
-    const newSelected = new Map(selectedProducts);
-    const currentQuantity = newSelected.get(productId) || 0;
-    const newQuantity = Math.max(0, currentQuantity + change);
+  const addToOrder = () => {
+    if (!selectedProductId || !quantity || parseInt(quantity) <= 0) return;
 
-    if (newQuantity === 0) {
-      newSelected.delete(productId);
+    const product = products.find(p => p.id === selectedProductId);
+    if (!product) return;
+
+    const existingItemIndex = orderList.findIndex(item => item.productId === selectedProductId);
+    
+    let newOrderList: OrderItem[];
+    
+    if (existingItemIndex >= 0) {
+      // Atualizar item existente
+      newOrderList = orderList.map((item, index) => 
+        index === existingItemIndex 
+          ? { ...item, quantity: item.quantity + parseInt(quantity) }
+          : item
+      );
     } else {
-      newSelected.set(productId, newQuantity);
+      // Adicionar novo item
+      newOrderList = [
+        ...orderList,
+        {
+          productId: selectedProductId,
+          productName: product.name,
+          quantity: parseInt(quantity)
+        }
+      ];
     }
 
-    setSelectedProducts(newSelected);
-
-    // Converter para array e enviar para o componente pai
-    const productsArray = Array.from(newSelected.entries()).map(([productId, quantity]) => ({
-      productId,
-      productName: products.find(p => p.id === productId)?.name || productName,
-      quantity
-    }));
-
-    onProductsChange(productsArray);
+    setOrderList(newOrderList);
+    onProductsChange(newOrderList);
+    
+    // Limpar seleção
+    setSelectedProductId(null);
+    setQuantity('1');
+    setSearchTerm('');
   };
 
+  const removeFromOrder = (productId: number) => {
+    const newOrderList = orderList.filter(item => item.productId !== productId);
+    setOrderList(newOrderList);
+    onProductsChange(newOrderList);
+  };
+
+  const updateQuantity = (productId: number, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeFromOrder(productId);
+      return;
+    }
+
+    const newOrderList = orderList.map(item =>
+      item.productId === productId
+        ? { ...item, quantity: newQuantity }
+        : item
+    );
+    setOrderList(newOrderList);
+    onProductsChange(newOrderList);
+  };
+
+  // Cálculos de totais
+  const totalItems = orderList.reduce((total, item) => total + item.quantity, 0);
+  const totalCaixas = Math.ceil(totalItems / 12); // Assumindo 12 itens por caixa
+  const totalEmbalagens = Math.ceil(totalItems / 6); // Assumindo 6 itens por embalagem
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search className="h-5 w-5" />
-          Selecionar Produtos
-        </CardTitle>
-        <div className="relative">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-          <Input
-            placeholder="Buscar produtos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="max-h-96 overflow-y-auto space-y-3">
-        {filteredProducts.map((product) => {
-          const quantity = selectedProducts.get(product.id!) || 0;
-          return (
-            <div
-              key={product.id}
-              className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
-            >
-              <div className="flex-1">
-                <h4 className="font-medium">{product.name}</h4>
-                {product.code && (
-                  <Badge variant="outline" className="text-xs mt-1">
-                    {product.code}
-                  </Badge>
-                )}
+    <div className="space-y-6">
+      {/* Busca e Seleção de Produtos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Adicionar Produto à Encomenda
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <div className="relative">
+                <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar produtos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => updateProductQuantity(product.id!, product.name, -1)}
-                  disabled={quantity === 0}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <span className="w-8 text-center font-medium">
-                  {quantity}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => updateProductQuantity(product.id!, product.name, 1)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+              
+              {searchTerm && filteredProducts.length > 0 && (
+                <div className="mt-2 border rounded-lg max-h-32 overflow-y-auto">
+                  {filteredProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className={`p-2 cursor-pointer hover:bg-accent transition-colors ${
+                        selectedProductId === product.id ? 'bg-accent' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedProductId(product.id!);
+                        setSearchTerm(product.name);
+                      }}
+                    >
+                      <div className="font-medium">{product.name}</div>
+                      {product.code && (
+                        <div className="text-xs text-muted-foreground">{product.code}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          );
-        })}
-        
-        {filteredProducts.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            {searchTerm ? 'Nenhum produto encontrado' : 'Nenhum produto cadastrado'}
+            
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="Qtd"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                min="1"
+                className="w-20"
+              />
+              <Button 
+                onClick={addToOrder} 
+                disabled={!selectedProductId || !quantity}
+                className="flex-1"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar
+              </Button>
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Lista de Encomenda (Livro de Encomendas) */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Livro de Encomendas ({orderList.length} produtos)
+            </CardTitle>
+            <div className="flex gap-4 text-sm">
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Box className="h-3 w-3" />
+                {totalCaixas} caixas
+              </Badge>
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Package className="h-3 w-3" />
+                {totalEmbalagens} embalagens
+              </Badge>
+              <Badge variant="secondary">
+                {totalItems} itens total
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {orderList.length > 0 ? (
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">#</TableHead>
+                    <TableHead>Produto</TableHead>
+                    <TableHead className="w-24 text-center">Quantidade</TableHead>
+                    <TableHead className="w-16"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orderList.map((item, index) => (
+                    <TableRow key={item.productId}>
+                      <TableCell className="font-medium text-muted-foreground">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {item.productName}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                          min="1"
+                          className="w-20 text-center"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeFromOrder(item.productId)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <h3 className="font-medium mb-2">Livro de encomendas vazio</h3>
+              <p className="text-sm">
+                Use a busca acima para adicionar produtos à encomenda
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };

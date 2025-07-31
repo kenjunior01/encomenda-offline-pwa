@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { db, Customer, Order } from '@/lib/database';
 import { DepartmentType, departmentThemes } from '@/utils/departmentThemes';
 import { downloadOrderPDF } from '@/utils/pdfGenerator';
-import { ArrowLeft, User, Phone, MapPin, ShoppingCart, Download } from 'lucide-react';
+import { ArrowLeft, User, Phone, MapPin, Download } from 'lucide-react';
 
 export const NewOrder: React.FC = () => {
   const { department } = useParams<{ department: DepartmentType }>();
@@ -199,33 +199,11 @@ export const NewOrder: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Seleção de Produtos */}
+          {/* Seleção de Produtos - Livro de Encomendas */}
           <ProductSelector
             department={department}
             onProductsChange={setSelectedProducts}
           />
-
-          {/* Resumo dos Produtos Selecionados */}
-          {selectedProducts.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5" />
-                  Produtos Selecionados ({selectedProducts.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {selectedProducts.map((product, index) => (
-                    <div key={product.productId} className="flex justify-between items-center p-2 bg-muted rounded">
-                      <span>{product.productName}</span>
-                      <span className="font-medium">Qtd: {product.quantity}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Botões de Ação */}
           <div className="flex gap-4 justify-end">
