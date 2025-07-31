@@ -17,6 +17,16 @@ export const AdminDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Estados para cadastro manual
+  const [manualProduct, setManualProduct] = useState({
+    name: '',
+    code: '',
+    category: '',
+    quantity: '',
+    price: '',
+  });
+  const [isSavingManual, setIsSavingManual] = useState(false);
+
   const department = user?.department!;
   const theme = departmentThemes[department];
 
@@ -119,6 +129,50 @@ export const AdminDashboard: React.FC = () => {
     link.click();
   };
 
+  const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setManualProduct((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualProduct.name.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'O nome do produto é obrigatório.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setIsSavingManual(true);
+    try {
+      const newProduct: Product = {
+        name: manualProduct.name.trim(),
+        code: manualProduct.code || undefined,
+        category: manualProduct.category || undefined,
+        quantity: manualProduct.quantity ? Number(manualProduct.quantity) : undefined,
+        price: manualProduct.price ? Number(manualProduct.price) : undefined,
+        department,
+        createdAt: new Date(),
+      };
+      await db.products.add(newProduct);
+      setManualProduct({ name: '', code: '', category: '', quantity: '', price: '' });
+      await loadData();
+      toast({
+        title: 'Produto cadastrado',
+        description: `Produto "${newProduct.name}" adicionado com sucesso!`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível cadastrar o produto.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-6xl mx-auto">
@@ -156,6 +210,53 @@ export const AdminDashboard: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Cadastro manual de produto */}
+                <form onSubmit={handleManualSubmit} className="mb-6 border rounded-lg p-4 flex flex-col md:flex-row md:items-end gap-4 bg-muted/30">
+                  <Input
+                    name="name"
+                    placeholder="Nome do produto *"
+                    value={manualProduct.name}
+                    onChange={handleManualInput}
+                    required
+                    className="md:w-1/4"
+                  />
+                  <Input
+                    name="code"
+                    placeholder="Código"
+                    value={manualProduct.code}
+                    onChange={handleManualInput}
+                    className="md:w-1/6"
+                  />
+                  <Input
+                    name="category"
+                    placeholder="Categoria"
+                    value={manualProduct.category}
+                    onChange={handleManualInput}
+                    className="md:w-1/6"
+                  />
+                  <Input
+                    name="quantity"
+                    placeholder="Quantidade"
+                    type="number"
+                    min="0"
+                    value={manualProduct.quantity}
+                    onChange={handleManualInput}
+                    className="md:w-1/6"
+                  />
+                  <Input
+                    name="price"
+                    placeholder="Preço"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualProduct.price}
+                    onChange={handleManualInput}
+                    className="md:w-1/6"
+                  />
+                  <Button type="submit" disabled={isSavingManual} className="md:w-1/6">
+                    {isSavingManual ? 'Salvando...' : 'Adicionar'}
+                  </Button>
+                </form>
                 <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                   <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-medium mb-2">Upload de Produtos</h3>
