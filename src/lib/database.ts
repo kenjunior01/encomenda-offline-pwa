@@ -17,6 +17,8 @@ export interface Product {
   department: 'eletrodomesticos' | 'alimentacao' | 'cosmeticos';
   quantity?: number;
   price?: number;
+  unidadesPorCaixa?: number; // Novo campo
+  embalagensPorCaixa?: number; // Novo campo
   createdAt: Date;
 }
 

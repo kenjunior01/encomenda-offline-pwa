@@ -24,6 +24,8 @@ export const AdminDashboard: React.FC = () => {
     category: '',
     quantity: '',
     price: '',
+    unidadesPorCaixa: '',
+    embalagensPorCaixa: '',
   });
   const [isSavingManual, setIsSavingManual] = useState(false);
 
@@ -152,11 +154,13 @@ export const AdminDashboard: React.FC = () => {
         category: manualProduct.category || undefined,
         quantity: manualProduct.quantity ? Number(manualProduct.quantity) : undefined,
         price: manualProduct.price ? Number(manualProduct.price) : undefined,
+        unidadesPorCaixa: manualProduct.unidadesPorCaixa ? Number(manualProduct.unidadesPorCaixa) : undefined,
+        embalagensPorCaixa: manualProduct.embalagensPorCaixa ? Number(manualProduct.embalagensPorCaixa) : undefined,
         department,
         createdAt: new Date(),
       };
       await db.products.add(newProduct);
-      setManualProduct({ name: '', code: '', category: '', quantity: '', price: '' });
+      setManualProduct({ name: '', code: '', category: '', quantity: '', price: '', unidadesPorCaixa: '', embalagensPorCaixa: '' });
       await loadData();
       toast({
         title: 'Produto cadastrado',
@@ -218,7 +222,7 @@ export const AdminDashboard: React.FC = () => {
                     value={manualProduct.name}
                     onChange={handleManualInput}
                     required
-                    className="md:w-1/4"
+                    className="md:w-1/5"
                   />
                   <Input
                     name="code"
@@ -250,6 +254,24 @@ export const AdminDashboard: React.FC = () => {
                     min="0"
                     step="0.01"
                     value={manualProduct.price}
+                    onChange={handleManualInput}
+                    className="md:w-1/6"
+                  />
+                  <Input
+                    name="unidadesPorCaixa"
+                    placeholder="Unidades por caixa"
+                    type="number"
+                    min="0"
+                    value={manualProduct.unidadesPorCaixa}
+                    onChange={handleManualInput}
+                    className="md:w-1/6"
+                  />
+                  <Input
+                    name="embalagensPorCaixa"
+                    placeholder="Embalagens por caixa"
+                    type="number"
+                    min="0"
+                    value={manualProduct.embalagensPorCaixa}
                     onChange={handleManualInput}
                     className="md:w-1/6"
                   />
