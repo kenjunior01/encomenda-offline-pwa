@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db, Order, Customer } from '@/lib/database';
 import { departmentThemes } from '@/utils/departmentThemes';
 import { ArrowLeft, History, Calendar, User, Package } from 'lucide-react';
+import { SEO } from '@/components/SEO';
 
 export const OrderHistory: React.FC = () => {
   const navigate = useNavigate();
@@ -65,9 +66,10 @@ export const OrderHistory: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <SEO title="Histórico de Encomendas | Encomendas PWA" description="Visualize todas as suas encomendas anteriores." />
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <Card className="mb-6">
+        <Card className="mb-6 animate-fade-in">
           <CardHeader>
             <div className="flex items-center gap-4">
               <Button 

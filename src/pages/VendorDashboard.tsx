@@ -6,6 +6,7 @@ import { DepartmentCard } from '@/components/DepartmentCard';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { DepartmentType } from '@/utils/departmentThemes';
 import { Plus, LogOut, History, Smartphone } from 'lucide-react';
+import { SEO } from '@/components/SEO';
 
 export const VendorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -25,6 +26,7 @@ export const VendorDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <SEO title="Dashboard do Vendedor | Encomendas PWA" description="Inicie novas encomendas e acesse seu histórico." />
       <div className="max-w-6xl mx-auto">
         {/* Prompt de Instalação Mobile */}
         {showInstallPrompt && (
@@ -92,6 +94,7 @@ export const VendorDashboard: React.FC = () => {
                 <div className="mt-6 flex justify-center">
                   <Button 
                     size="lg"
+                    variant="premium"
                     onClick={() => {
                       // Navegar para página de nova encomenda
                       window.location.href = `/nova-encomenda/${selectedDepartment}`;

@@ -12,6 +12,7 @@ import { db, Customer, Order } from '@/lib/database';
 import { DepartmentType, departmentThemes } from '@/utils/departmentThemes';
 import { downloadOrderPDF } from '@/utils/pdfGenerator';
 import { ArrowLeft, User, Phone, MapPin, Download } from 'lucide-react';
+import { SEO } from '@/components/SEO';
 
 export const NewOrder: React.FC = () => {
   const { department } = useParams<{ department: DepartmentType }>();
@@ -122,6 +123,7 @@ export const NewOrder: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <SEO title={`Nova Encomenda - ${theme.name} | Encomendas PWA`} description="Crie uma nova encomenda e gere o PDF automaticamente." />
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className={`${theme.gradient} ${theme.shadow} rounded-lg p-6 mb-6`}>
@@ -224,6 +226,7 @@ export const NewOrder: React.FC = () => {
               disabled={isSubmitting || selectedProducts.length === 0}
               className="flex items-center justify-center gap-2 w-full sm:w-auto order-1 sm:order-2 min-h-[44px] text-base font-medium"
               size="lg"
+              variant="premium"
             >
               <Download className="h-5 w-5" />
               {isSubmitting ? 'Criando...' : 'Criar Encomenda & Gerar PDF'}

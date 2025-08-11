@@ -11,6 +11,7 @@ import { db, Product, Order } from '@/lib/database';
 import { departmentThemes } from '@/utils/departmentThemes';
 import { importProductsFromFile, validateProductsData, downloadCSVTemplate } from '@/utils/excelImport';
 import { Upload, LogOut, Package, BarChart, Download, Plus, Trash2, Info } from 'lucide-react';
+import { SEO } from '@/components/SEO';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -229,9 +230,10 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
+      <SEO title={`Admin - ${theme.name} | Encomendas PWA`} description="Gerencie produtos e relatórios do departamento." />
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className={`${theme.gradient} ${theme.shadow} rounded-lg p-6 mb-6`}>
+        <div className={`${theme.gradient} ${theme.shadow} rounded-lg p-6 mb-6 animate-fade-in`}>
           <div className="flex justify-between items-center text-white">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
