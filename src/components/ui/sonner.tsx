@@ -1,13 +1,14 @@
-import { useTheme } from "next-themes"
-import { Toaster as Sonner, toast } from "sonner"
+import * as React from "react"
+import { Toaster as SonnerToaster, toast } from "sonner"
 
-type ToasterProps = React.ComponentProps<typeof Sonner>
+// Lightweight wrapper without next-themes to avoid extra providers
+// Consumers can still control theme via props if needed
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+type ToasterProps = React.ComponentProps<typeof SonnerToaster>
 
+const Toaster = ({ theme = "light", ...props }: ToasterProps) => {
   return (
-    <Sonner
+    <SonnerToaster
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       toastOptions={{
