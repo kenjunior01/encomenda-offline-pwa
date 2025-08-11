@@ -17,7 +17,7 @@ export const DepartmentCard: React.FC<DepartmentCardProps> = ({
 
   return (
     <Card 
-      className={`cursor-pointer transition-all duration-300 hover:scale-105 ${
+      className={`cursor-pointer hover-scale animate-fade-in ${
         isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
       }`}
       onClick={onClick}

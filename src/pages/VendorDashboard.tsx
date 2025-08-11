@@ -34,7 +34,7 @@ export const VendorDashboard: React.FC = () => {
         )}
 
         {/* Header */}
-        <Card className="mb-6">
+        <Card className="mb-6 animate-fade-in">
           <CardHeader>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -66,7 +66,7 @@ export const VendorDashboard: React.FC = () => {
 
         {/* Menu Principal */}
         <div className="grid gap-6">
-          <Card>
+          <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Plus className="h-5 w-5" />
@@ -104,7 +104,7 @@ export const VendorDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
