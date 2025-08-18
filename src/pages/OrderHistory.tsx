@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { db, Order, Customer } from '@/lib/database';
 import { departmentThemes } from '@/utils/departmentThemes';
-import { ArrowLeft, History, Calendar, User, Package } from 'lucide-react';
+import { ArrowLeft, History, Calendar, User, Package, Building } from 'lucide-react';
 import { SEO } from '@/components/SEO';
 
 export const OrderHistory: React.FC = () => {
@@ -99,6 +99,8 @@ export const OrderHistory: React.FC = () => {
             {orders.map((order) => {
               const customer = customers.get(order.customerId);
               const theme = departmentThemes[order.department];
+              const totalBoxes = order.items.reduce((sum, item) => sum + item.boxes, 0);
+              const totalPieces = order.items.reduce((sum, item) => sum + item.pieces, 0);
               
               return (
                 <Card key={order.id} className="hover:shadow-md transition-shadow">
@@ -122,7 +124,8 @@ export const OrderHistory: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             <span>
-                              {order.createdAt.toLocaleDateString('pt-BR')} às {' '}
+                              Data: {order.orderDate.toLocaleDateString('pt-BR')} • {' '}
+                              Criada: {order.createdAt.toLocaleDateString('pt-BR')} às {' '}
                               {order.createdAt.toLocaleTimeString('pt-BR', { 
                                 hour: '2-digit', 
                                 minute: '2-digit' 
@@ -137,24 +140,56 @@ export const OrderHistory: React.FC = () => {
                             </div>
                           )}
 
+                          <div className="flex items-center gap-2">
+                            <Building className="h-4 w-4 text-muted-foreground" />
+                            <span>{order.warehouseName}</span>
+                          </div>
+
                           <div className="flex items-start gap-2">
                             <Package className="h-4 w-4 text-muted-foreground mt-1" />
                             <div>
                               <div className="font-medium">{theme.name}</div>
                               <div className="text-muted-foreground">
-                                {order.products.map(p => 
-                                  `${p.productName} (${p.quantity})`
-                                ).join(', ')}
+                                {order.items.length} produtos • {totalBoxes} caixas • {totalPieces} peças
                               </div>
+                              {order.notes && (
+                                <div className="text-muted-foreground italic mt-1">
+                                  "{order.notes}"
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
-                        <Badge variant="outline">
-                          {order.products.reduce((total, p) => total + p.quantity, 0)} itens
+                        <div className="flex gap-2">
+                          <Badge variant="outline">
+                            {totalBoxes} caixas
+                          </Badge>
+                          <Badge variant="outline">
+                            {totalPieces} peças
+                          </Badge>
+                        </div>
+                        <Badge variant="secondary">
+                          {order.items.length} itens
                         </Badge>
+                      </div>
+                    </div>
+
+                    {/* Detalhes dos itens */}
+                    <div className="mt-4 pt-4 border-t">
+                      <h4 className="font-medium mb-2">Itens da encomenda:</h4>
+                      <div className="grid gap-2">
+                        {order.items.map((item, index) => (
+                          <div key={index} className="flex justify-between items-center text-sm bg-muted/50 p-2 rounded">
+                            <span className="font-medium">{item.productName}</span>
+                            <div className="flex gap-4 text-muted-foreground">
+                              <span>{item.boxes} caixas</span>
+                              <span>{item.pieces} peças</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </CardContent>

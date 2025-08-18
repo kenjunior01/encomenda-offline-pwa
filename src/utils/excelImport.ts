@@ -7,8 +7,7 @@ export interface ImportedProduct {
   category?: string;
   quantity?: number;
   price?: number;
-  unidadesPorCaixa?: number;
-  embalagensPorCaixa?: number;
+  piecesPerBox?: number;
 }
 
 export const importProductsFromFile = (
@@ -51,8 +50,7 @@ export const importProductsFromFile = (
             const category = item.category || item.categoria || item.Categoria || item.CATEGORIA || '';
             const quantity = item.quantity || item.quantidade || item.Quantidade || item.QUANTIDADE || item.estoque || item.Estoque || '';
             const price = item.price || item.preco || item.Preco || item.PRECO || item.valor || item.Valor || '';
-            const unidadesPorCaixa = item.unidadesPorCaixa || item.unidades_por_caixa || item.unidadesCaixa || '';
-            const embalagensPorCaixa = item.embalagensPorCaixa || item.embalagens_por_caixa || item.embalagensCaixa || '';
+            const piecesPerBox = item.piecesPerBox || item.pecasPorCaixa || item.pieces_per_box || item.unidadesPorCaixa || item.unidades_por_caixa || '';
 
             if (!name || name.toString().trim() === '') {
               console.warn(`Linha ${index + 2}: Nome do produto vazio ou inválido`);
@@ -65,10 +63,11 @@ export const importProductsFromFile = (
               category: category ? category.toString().trim() : undefined,
               quantity: quantity && !isNaN(Number(quantity)) ? Number(quantity) : undefined,
               price: price && !isNaN(Number(price)) ? Number(price) : undefined,
-              unidadesPorCaixa: unidadesPorCaixa && !isNaN(Number(unidadesPorCaixa)) ? Number(unidadesPorCaixa) : undefined,
-              embalagensPorCaixa: embalagensPorCaixa && !isNaN(Number(embalagensPorCaixa)) ? Number(embalagensPorCaixa) : undefined,
+              piecesPerBox: piecesPerBox && !isNaN(Number(piecesPerBox)) ? Number(piecesPerBox) : undefined,
               department,
-              createdAt: new Date()
+              active: true,
+              createdAt: new Date(),
+              updatedAt: new Date()
             };
 
             return product;
@@ -116,6 +115,10 @@ export const validateProductsData = (products: Product[]): string[] => {
     if (product.price !== undefined && product.price < 0) {
       errors.push(`Linha ${index + 1}: Preço não pode ser negativo`);
     }
+
+    if (product.piecesPerBox !== undefined && product.piecesPerBox <= 0) {
+      errors.push(`Linha ${index + 1}: Peças por caixa deve ser maior que zero`);
+    }
   });
   
   return errors;
@@ -129,8 +132,7 @@ export const generateCSVTemplate = (): string => {
     'category',
     'quantity',
     'price',
-    'unidadesPorCaixa',
-    'embalagensPorCaixa'
+    'piecesPerBox'
   ];
   
   const exampleData = [
@@ -139,7 +141,6 @@ export const generateCSVTemplate = (): string => {
     'Refrigeração',
     '50',
     '1299.99',
-    '1',
     '1'
   ];
   

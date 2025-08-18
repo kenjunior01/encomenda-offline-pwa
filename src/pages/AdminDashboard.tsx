@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { db, Product, Order } from '@/lib/database';
+import { db, Product, Order, User, Warehouse } from '@/lib/database';
 import { departmentThemes } from '@/utils/departmentThemes';
 import { importProductsFromFile, validateProductsData, downloadCSVTemplate } from '@/utils/excelImport';
-import { Upload, LogOut, Package, BarChart, Download, Plus, Trash2, Info } from 'lucide-react';
+import { Upload, LogOut, Package, BarChart, Download, Plus, Trash2, Info, Users, Building, UserPlus } from 'lucide-react';
 import { SEO } from '@/components/SEO';
 
 export const AdminDashboard: React.FC = () => {
@@ -18,43 +20,85 @@ export const AdminDashboard: React.FC = () => {
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Estados para cadastro manual
+  // Estados para cadastro manual de produto
   const [manualProduct, setManualProduct] = useState({
     name: '',
     code: '',
     category: '',
     quantity: '',
     price: '',
-    unidadesPorCaixa: '',
-    embalagensPorCaixa: '',
+    piecesPerBox: '',
   });
   const [isSavingManual, setIsSavingManual] = useState(false);
 
-  const department = user?.department!;
-  const theme = departmentThemes[department];
+  // Estados para cadastro de usuário
+  const [newUser, setNewUser] = useState({
+    username: '',
+    password: '',
+    role: 'vendedor' as 'vendedor' | 'supervisor',
+    department: 'eletrodomesticos' as 'eletrodomesticos' | 'alimentacao' | 'cosmeticos',
+    supervisorId: ''
+  });
+  const [isSavingUser, setIsSavingUser] = useState(false);
+
+  // Estados para cadastro de armazém
+  const [newWarehouse, setNewWarehouse] = useState({
+    name: '',
+    department: 'eletrodomesticos' as 'eletrodomesticos' | 'alimentacao' | 'cosmeticos',
+    address: ''
+  });
+  const [isSavingWarehouse, setIsSavingWarehouse] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+  const department = user?.department;
+  const theme = department ? departmentThemes[department] : null;
 
   useEffect(() => {
     loadData();
-  }, [department]);
+  }, [department, isAdmin]);
 
   const loadData = async () => {
     try {
-      // Carregar produtos do departamento
-      const departmentProducts = await db.products
-        .where('department')
-        .equals(department)
-        .toArray();
-      setProducts(departmentProducts);
-
-      // Carregar encomendas do departamento
-      const departmentOrders = await db.orders
-        .where('department')
-        .equals(department)
-        .reverse()
-        .toArray();
-      setOrders(departmentOrders);
+      if (isAdmin) {
+        // Admin vê tudo
+        const allProducts = await db.products.toArray();
+        const allOrders = await db.orders.reverse().toArray();
+        const allUsers = await db.users.toArray();
+        const allWarehouses = await db.warehouses.toArray();
+        
+        setProducts(allProducts);
+        setOrders(allOrders);
+        setUsers(allUsers);
+        setWarehouses(allWarehouses);
+      } else if (department) {
+        // Supervisor vê apenas do seu departamento
+        const departmentProducts = await db.products
+          .where('department')
+          .equals(department)
+          .toArray();
+        const departmentOrders = await db.orders
+          .where('department')
+          .equals(department)
+          .reverse()
+          .toArray();
+        const departmentUsers = await db.users
+          .where('department')
+          .equals(department)
+          .toArray();
+        const departmentWarehouses = await db.warehouses
+          .where('department')
+          .equals(department)
+          .toArray();
+        
+        setProducts(departmentProducts);
+        setOrders(departmentOrders);
+        setUsers(departmentUsers);
+        setWarehouses(departmentWarehouses);
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast({
@@ -78,10 +122,20 @@ export const AdminDashboard: React.FC = () => {
       return;
     }
 
+    if (!department && !isAdmin) {
+      toast({
+        title: "Erro",
+        description: "Departamento não definido",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
 
     try {
-      const newProducts = await importProductsFromFile(file, department);
+      const targetDepartment = department || 'eletrodomesticos';
+      const newProducts = await importProductsFromFile(file, targetDepartment);
       const errors = validateProductsData(newProducts);
 
       if (errors.length > 0) {
@@ -93,12 +147,13 @@ export const AdminDashboard: React.FC = () => {
         return;
       }
 
-      // Remover produtos existentes do departamento
-      await db.products.where('department').equals(department).delete();
+      // Se não for admin, remover produtos existentes do departamento
+      if (!isAdmin && department) {
+        await db.products.where('department').equals(department).delete();
+      }
 
       // Adicionar novos produtos
       await db.products.bulkAdd(newProducts);
-
       await loadData();
 
       toast({
@@ -115,40 +170,11 @@ export const AdminDashboard: React.FC = () => {
       });
     } finally {
       setIsUploading(false);
-      // Limpar input
       event.target.value = '';
     }
   };
 
-  const exportOrdersCSV = () => {
-    if (orders.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Nenhuma encomenda para exportar",
-      });
-      return;
-    }
-
-    const csvContent = [
-      'Data,Vendedor,Cliente,Produtos,Status',
-      ...orders.map(order => 
-        `${order.createdAt.toLocaleDateString('pt-BR')},${order.vendorName},"Cliente ID: ${order.customerId}","${order.products.map(p => `${p.productName} (${p.quantity})`).join('; ')}",${order.status}`
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `encomendas_${department}_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-  };
-
-  const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setManualProduct((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleManualSubmit = async (e: React.FormEvent) => {
+  const handleManualProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!manualProduct.name.trim()) {
@@ -163,16 +189,19 @@ export const AdminDashboard: React.FC = () => {
     setIsSavingManual(true);
     
     try {
+      const targetDepartment = department || 'eletrodomesticos';
+      
       const newProduct: Product = {
         name: manualProduct.name.trim(),
         code: manualProduct.code.trim() || undefined,
         category: manualProduct.category.trim() || undefined,
         quantity: manualProduct.quantity ? Number(manualProduct.quantity) : undefined,
         price: manualProduct.price ? Number(manualProduct.price) : undefined,
-        unidadesPorCaixa: manualProduct.unidadesPorCaixa ? Number(manualProduct.unidadesPorCaixa) : undefined,
-        embalagensPorCaixa: manualProduct.embalagensPorCaixa ? Number(manualProduct.embalagensPorCaixa) : undefined,
-        department,
+        piecesPerBox: manualProduct.piecesPerBox ? Number(manualProduct.piecesPerBox) : undefined,
+        department: targetDepartment,
+        active: true,
         createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       await db.products.add(newProduct);
@@ -184,8 +213,7 @@ export const AdminDashboard: React.FC = () => {
         category: '', 
         quantity: '', 
         price: '', 
-        unidadesPorCaixa: '', 
-        embalagensPorCaixa: '' 
+        piecesPerBox: '' 
       });
       
       await loadData();
@@ -203,6 +231,120 @@ export const AdminDashboard: React.FC = () => {
       });
     } finally {
       setIsSavingManual(false);
+    }
+  };
+
+  const handleUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newUser.username.trim() || !newUser.password.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Username e senha são obrigatórios.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Verificar se username já existe
+    const existingUser = await db.users.where('username').equals(newUser.username.trim()).first();
+    if (existingUser) {
+      toast({
+        title: 'Erro',
+        description: 'Este username já está em uso.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSavingUser(true);
+    
+    try {
+      const userData: User = {
+        username: newUser.username.trim(),
+        password: newUser.password,
+        role: newUser.role,
+        department: newUser.department,
+        supervisorId: newUser.supervisorId ? Number(newUser.supervisorId) : undefined,
+        createdAt: new Date(),
+      };
+
+      await db.users.add(userData);
+      
+      // Limpar formulário
+      setNewUser({
+        username: '',
+        password: '',
+        role: 'vendedor',
+        department: 'eletrodomesticos',
+        supervisorId: ''
+      });
+      
+      await loadData();
+      
+      toast({
+        title: 'Usuário cadastrado',
+        description: `Usuário "${userData.username}" criado com sucesso!`,
+      });
+    } catch (error) {
+      console.error('Erro ao cadastrar usuário:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível cadastrar o usuário.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
+  const handleWarehouseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newWarehouse.name.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'O nome do armazém é obrigatório.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSavingWarehouse(true);
+    
+    try {
+      const warehouseData: Warehouse = {
+        name: newWarehouse.name.trim(),
+        department: newWarehouse.department,
+        address: newWarehouse.address.trim() || undefined,
+        active: true,
+        createdAt: new Date(),
+      };
+
+      await db.warehouses.add(warehouseData);
+      
+      // Limpar formulário
+      setNewWarehouse({
+        name: '',
+        department: 'eletrodomesticos',
+        address: ''
+      });
+      
+      await loadData();
+      
+      toast({
+        title: 'Armazém cadastrado',
+        description: `Armazém "${warehouseData.name}" criado com sucesso!`,
+      });
+    } catch (error) {
+      console.error('Erro ao cadastrar armazém:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível cadastrar o armazém.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingWarehouse(false);
     }
   };
 
@@ -228,19 +370,68 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const deleteUser = async (userId: number, username: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o usuário "${username}"?`)) {
+      return;
+    }
+
+    try {
+      await db.users.delete(userId);
+      await loadData();
+      toast({
+        title: "Usuário excluído",
+        description: `"${username}" foi removido com sucesso`,
+      });
+    } catch (error) {
+      console.error('Erro ao excluir usuário:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o usuário",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const exportOrdersCSV = () => {
+    if (orders.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Nenhuma encomenda para exportar",
+      });
+      return;
+    }
+
+    const csvContent = [
+      'Data,Vendedor,Cliente,Departamento,Armazem,Caixas,Pecas,Status',
+      ...orders.map(order => {
+        const totalBoxes = order.items.reduce((sum, item) => sum + item.boxes, 0);
+        const totalPieces = order.items.reduce((sum, item) => sum + item.pieces, 0);
+        return `${order.orderDate.toLocaleDateString('pt-BR')},${order.vendorName},"Cliente ID: ${order.customerId}",${order.department},${order.warehouseName},${totalBoxes},${totalPieces},${order.status}`;
+      })
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `encomendas_${department || 'todas'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
+  const supervisors = users.filter(u => u.role === 'supervisor');
+
   return (
     <div className="min-h-screen bg-background p-4">
-      <SEO title={`Admin - ${theme.name} | Encomendas PWA`} description="Gerencie produtos e relatórios do departamento." />
+      <SEO title={`${isAdmin ? 'Admin Geral' : `Admin - ${theme?.name}`} | Encomendas PWA`} description="Gerencie produtos, usuários e relatórios do sistema." />
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className={`${theme.gradient} ${theme.shadow} rounded-lg p-6 mb-6 animate-fade-in`}>
+        <div className={`${theme?.gradient || 'bg-gradient-to-r from-primary to-primary/80'} ${theme?.shadow || 'shadow-lg'} rounded-lg p-6 mb-6 animate-fade-in`}>
           <div className="flex justify-between items-center text-white">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                {theme.icon} Admin - {theme.name}
+                {theme?.icon || '⚙️'} {isAdmin ? 'Admin Geral' : `Admin - ${theme?.name}`}
               </h1>
               <p className="opacity-90">
-                Gerencie produtos e visualize relatórios
+                {isAdmin ? 'Gerencie todo o sistema' : 'Gerencie produtos, usuários e relatórios'}
               </p>
             </div>
             <Button variant="secondary" onClick={logout}>
@@ -251,8 +442,10 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <Tabs defaultValue="products" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="products">Produtos</TabsTrigger>
+            <TabsTrigger value="users">Usuários</TabsTrigger>
+            <TabsTrigger value="warehouses">Armazéns</TabsTrigger>
             <TabsTrigger value="reports">Relatórios</TabsTrigger>
           </TabsList>
 
@@ -264,9 +457,9 @@ export const AdminDashboard: React.FC = () => {
               <AlertDescription>
                 <strong>Como adicionar produtos:</strong>
                 <br />
-                1. <strong>Cadastro Manual:</strong> Preencha o formulário abaixo e clique em "Adicionar Produto"
+                1. <strong>Cadastro Manual:</strong> Preencha o formulário abaixo
                 <br />
-                2. <strong>Upload de Arquivo:</strong> Baixe o template, preencha com seus produtos e faça upload
+                2. <strong>Upload de Arquivo:</strong> Baixe o template, preencha e faça upload
                 <br />
                 <Button 
                   variant="link" 
@@ -288,7 +481,7 @@ export const AdminDashboard: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleManualSubmit} className="space-y-4">
+                <form onSubmit={handleManualProductSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Nome do Produto *</Label>
@@ -297,7 +490,7 @@ export const AdminDashboard: React.FC = () => {
                         name="name"
                         placeholder="Ex: Geladeira Frost Free 400L"
                         value={manualProduct.name}
-                        onChange={handleManualInput}
+                        onChange={(e) => setManualProduct(prev => ({ ...prev, name: e.target.value }))}
                         required
                       />
                     </div>
@@ -309,7 +502,7 @@ export const AdminDashboard: React.FC = () => {
                         name="code"
                         placeholder="Ex: EL001"
                         value={manualProduct.code}
-                        onChange={handleManualInput}
+                        onChange={(e) => setManualProduct(prev => ({ ...prev, code: e.target.value }))}
                       />
                     </div>
                     
@@ -320,7 +513,20 @@ export const AdminDashboard: React.FC = () => {
                         name="category"
                         placeholder="Ex: Refrigeração"
                         value={manualProduct.category}
-                        onChange={handleManualInput}
+                        onChange={(e) => setManualProduct(prev => ({ ...prev, category: e.target.value }))}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="piecesPerBox">Peças por Caixa</Label>
+                      <Input
+                        id="piecesPerBox"
+                        name="piecesPerBox"
+                        type="number"
+                        min="1"
+                        placeholder="Ex: 12"
+                        value={manualProduct.piecesPerBox}
+                        onChange={(e) => setManualProduct(prev => ({ ...prev, piecesPerBox: e.target.value }))}
                       />
                     </div>
                     
@@ -333,7 +539,7 @@ export const AdminDashboard: React.FC = () => {
                         min="0"
                         placeholder="Ex: 50"
                         value={manualProduct.quantity}
-                        onChange={handleManualInput}
+                        onChange={(e) => setManualProduct(prev => ({ ...prev, quantity: e.target.value }))}
                       />
                     </div>
                     
@@ -347,33 +553,7 @@ export const AdminDashboard: React.FC = () => {
                         step="0.01"
                         placeholder="Ex: 1299.99"
                         value={manualProduct.price}
-                        onChange={handleManualInput}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="unidadesPorCaixa">Unidades por Caixa</Label>
-                      <Input
-                        id="unidadesPorCaixa"
-                        name="unidadesPorCaixa"
-                        type="number"
-                        min="0"
-                        placeholder="Ex: 12"
-                        value={manualProduct.unidadesPorCaixa}
-                        onChange={handleManualInput}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="embalagensPorCaixa">Embalagens por Caixa</Label>
-                      <Input
-                        id="embalagensPorCaixa"
-                        name="embalagensPorCaixa"
-                        type="number"
-                        min="0"
-                        placeholder="Ex: 6"
-                        value={manualProduct.embalagensPorCaixa}
-                        onChange={handleManualInput}
+                        onChange={(e) => setManualProduct(prev => ({ ...prev, price: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -397,31 +577,6 @@ export const AdminDashboard: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-                  <h4 className="font-medium mb-2">📋 Formato do Arquivo:</h4>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Seu arquivo deve conter as seguintes colunas (em qualquer ordem):
-                  </p>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• <strong>name</strong> ou <strong>Nome</strong> - Nome do produto (obrigatório)</li>
-                    <li>• <strong>code</strong> ou <strong>Codigo</strong> - Código do produto (opcional)</li>
-                    <li>• <strong>category</strong> ou <strong>Categoria</strong> - Categoria (opcional)</li>
-                    <li>• <strong>quantity</strong> ou <strong>Quantidade</strong> - Estoque (opcional)</li>
-                    <li>• <strong>price</strong> ou <strong>Preco</strong> - Preço (opcional)</li>
-                    <li>• <strong>unidadesPorCaixa</strong> - Unidades por caixa (opcional)</li>
-                    <li>• <strong>embalagensPorCaixa</strong> - Embalagens por caixa (opcional)</li>
-                  </ul>
-                  <div className="mt-3">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={downloadCSVTemplate}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Baixar Template
-                    </Button>
-                  </div>
-                </div>
                 <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                   <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-medium mb-2">Upload de Produtos</h3>
@@ -458,19 +613,23 @@ export const AdminDashboard: React.FC = () => {
                     {products.map((product) => (
                       <div key={product.id} className="flex justify-between items-start p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                         <div className="flex-1">
-                          <h4 className="font-medium text-lg">{product.name}</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium text-lg">{product.name}</h4>
+                            <Badge variant="outline">{product.department}</Badge>
+                            {!product.active && <Badge variant="destructive">Inativo</Badge>}
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
                             {product.code && (
                               <span><strong>Código:</strong> {product.code}</span>
                             )}
                             {product.category && (
                               <span><strong>Categoria:</strong> {product.category}</span>
                             )}
+                            {product.piecesPerBox && (
+                              <span><strong>Peças/Caixa:</strong> {product.piecesPerBox}</span>
+                            )}
                             {product.quantity !== undefined && (
                               <span><strong>Estoque:</strong> {product.quantity}</span>
-                            )}
-                            {product.price !== undefined && (
-                              <span><strong>Preço:</strong> R$ {product.price.toFixed(2)}</span>
                             )}
                           </div>
                         </div>
@@ -498,6 +657,241 @@ export const AdminDashboard: React.FC = () => {
             </Card>
           </TabsContent>
 
+          {/* Gerenciamento de Usuários */}
+          <TabsContent value="users" className="space-y-6">
+            {/* Cadastro de Usuário */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" />
+                  Cadastrar Novo Usuário
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleUserSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username *</Label>
+                      <Input
+                        id="username"
+                        value={newUser.username}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                        placeholder="Ex: vendedor4"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Senha *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Senha do usuário"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Função *</Label>
+                      <Select value={newUser.role} onValueChange={(value: 'vendedor' | 'supervisor') => setNewUser(prev => ({ ...prev, role: value }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vendedor">Vendedor</SelectItem>
+                          {isAdmin && <SelectItem value="supervisor">Supervisor</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Departamento *</Label>
+                      <Select value={newUser.department} onValueChange={(value: 'eletrodomesticos' | 'alimentacao' | 'cosmeticos') => setNewUser(prev => ({ ...prev, department: value }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="eletrodomesticos">Eletrodomésticos</SelectItem>
+                          <SelectItem value="alimentacao">Alimentação</SelectItem>
+                          <SelectItem value="cosmeticos">Cosméticos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {newUser.role === 'vendedor' && supervisors.length > 0 && (
+                      <div className="space-y-2">
+                        <Label htmlFor="supervisor">Supervisor</Label>
+                        <Select value={newUser.supervisorId} onValueChange={(value) => setNewUser(prev => ({ ...prev, supervisorId: value }))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um supervisor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {supervisors
+                              .filter(s => s.department === newUser.department)
+                              .map((supervisor) => (
+                                <SelectItem key={supervisor.id} value={supervisor.id!.toString()}>
+                                  {supervisor.username}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isSavingUser} className="min-w-[150px]">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      {isSavingUser ? 'Salvando...' : 'Cadastrar Usuário'}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Lista de Usuários */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Usuários Cadastrados ({users.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {users.length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {users.map((user) => (
+                      <div key={user.id} className="flex justify-between items-start p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium text-lg">{user.username}</h4>
+                            <Badge variant={user.role === 'admin' ? 'default' : user.role === 'supervisor' ? 'secondary' : 'outline'}>
+                              {user.role}
+                            </Badge>
+                            {user.department && <Badge variant="outline">{user.department}</Badge>}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Criado em: {user.createdAt.toLocaleDateString('pt-BR')}
+                          </div>
+                        </div>
+                        {user.role !== 'admin' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteUser(user.id!, user.username)}
+                            className="text-destructive hover:text-destructive ml-4"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="font-medium mb-2">Nenhum usuário cadastrado</h3>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Gerenciamento de Armazéns */}
+          <TabsContent value="warehouses" className="space-y-6">
+            {/* Cadastro de Armazém */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="h-5 w-5" />
+                  Cadastrar Novo Armazém
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleWarehouseSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="warehouseName">Nome do Armazém *</Label>
+                      <Input
+                        id="warehouseName"
+                        value={newWarehouse.name}
+                        onChange={(e) => setNewWarehouse(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Ex: Armazém Central Norte"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="warehouseDepartment">Departamento *</Label>
+                      <Select value={newWarehouse.department} onValueChange={(value: 'eletrodomesticos' | 'alimentacao' | 'cosmeticos') => setNewWarehouse(prev => ({ ...prev, department: value }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="eletrodomesticos">Eletrodomésticos</SelectItem>
+                          <SelectItem value="alimentacao">Alimentação</SelectItem>
+                          <SelectItem value="cosmeticos">Cosméticos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="warehouseAddress">Endereço</Label>
+                    <Input
+                      id="warehouseAddress"
+                      value={newWarehouse.address}
+                      onChange={(e) => setNewWarehouse(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="Endereço completo do armazém"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isSavingWarehouse} className="min-w-[150px]">
+                      <Building className="h-4 w-4 mr-2" />
+                      {isSavingWarehouse ? 'Salvando...' : 'Cadastrar Armazém'}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Lista de Armazéns */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="h-5 w-5" />
+                  Armazéns Cadastrados ({warehouses.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {warehouses.length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {warehouses.map((warehouse) => (
+                      <div key={warehouse.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-medium text-lg">{warehouse.name}</h4>
+                          <Badge variant="outline">{warehouse.department}</Badge>
+                          {!warehouse.active && <Badge variant="destructive">Inativo</Badge>}
+                        </div>
+                        {warehouse.address && (
+                          <p className="text-sm text-muted-foreground">{warehouse.address}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Building className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="font-medium mb-2">Nenhum armazém cadastrado</h3>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Relatórios */}
           <TabsContent value="reports">
             <Card>
@@ -516,7 +910,7 @@ export const AdminDashboard: React.FC = () => {
               <CardContent>
                 {orders.length > 0 ? (
                   <div className="space-y-4">
-                    <div className="grid md:grid-cols-3 gap-4 mb-6">
+                    <div className="grid md:grid-cols-4 gap-4 mb-6">
                       <Card>
                         <CardContent className="p-4 text-center">
                           <div className="text-2xl font-bold">{orders.length}</div>
@@ -539,6 +933,14 @@ export const AdminDashboard: React.FC = () => {
                           <div className="text-sm text-muted-foreground">Pendentes</div>
                         </CardContent>
                       </Card>
+                      <Card>
+                        <CardContent className="p-4 text-center">
+                          <div className="text-2xl font-bold">
+                            {orders.reduce((sum, o) => sum + o.items.reduce((itemSum, item) => itemSum + item.boxes, 0), 0)}
+                          </div>
+                          <div className="text-sm text-muted-foreground">Total Caixas</div>
+                        </CardContent>
+                      </Card>
                     </div>
 
                     <div className="max-h-96 overflow-y-auto space-y-2">
@@ -550,21 +952,26 @@ export const AdminDashboard: React.FC = () => {
                                 Encomenda #{order.id}
                               </h4>
                               <p className="text-sm text-muted-foreground">
-                                {order.createdAt.toLocaleDateString('pt-BR')} - {order.vendorName}
+                                {order.orderDate.toLocaleDateString('pt-BR')} - {order.vendorName}
                               </p>
                             </div>
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              order.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' :
-                              order.status === 'confirmado' ? 'bg-green-100 text-green-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {order.status}
-                            </span>
+                            <div className="flex gap-2">
+                              <Badge variant="outline">{order.department}</Badge>
+                              <Badge variant={
+                                order.status === 'pendente' ? 'secondary' :
+                                order.status === 'confirmado' ? 'default' : 'destructive'
+                              }>
+                                {order.status}
+                              </Badge>
+                            </div>
                           </div>
                           <div className="text-sm">
-                            <strong>Produtos:</strong> {order.products.map(p => 
-                              `${p.productName} (${p.quantity})`
-                            ).join(', ')}
+                            <strong>Armazém:</strong> {order.warehouseName}
+                          </div>
+                          <div className="text-sm">
+                            <strong>Itens:</strong> {order.items.length} produtos, {' '}
+                            {order.items.reduce((sum, item) => sum + item.boxes, 0)} caixas, {' '}
+                            {order.items.reduce((sum, item) => sum + item.pieces, 0)} peças
                           </div>
                         </div>
                       ))}

@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProductSelector } from '@/components/ProductSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { db, Customer, Order } from '@/lib/database';
+import { db, Customer, Order, OrderItem, Warehouse } from '@/lib/database';
 import { DepartmentType, departmentThemes } from '@/utils/departmentThemes';
 import { downloadOrderPDF } from '@/utils/pdfGenerator';
-import { ArrowLeft, User, Phone, MapPin, Download } from 'lucide-react';
+import { ArrowLeft, User, Phone, MapPin, Download, Warehouse as WarehouseIcon, Calendar, FileText } from 'lucide-react';
 import { SEO } from '@/components/SEO';
 
 export const NewOrder: React.FC = () => {
@@ -26,11 +27,38 @@ export const NewOrder: React.FC = () => {
     location: ''
   });
 
-  const [selectedProducts, setSelectedProducts] = useState<
-    { productId: number; productName: string; quantity: number }[]
-  >([]);
+  const [orderData, setOrderData] = useState({
+    warehouseId: '',
+    orderDate: new Date().toISOString().split('T')[0], // Data atual
+    notes: ''
+  });
 
+  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (department) {
+      loadWarehouses();
+    }
+  }, [department]);
+
+  const loadWarehouses = async () => {
+    if (!department) return;
+    
+    const departmentWarehouses = await db.warehouses
+      .where('department')
+      .equals(department)
+      .and(warehouse => warehouse.active)
+      .toArray();
+    
+    setWarehouses(departmentWarehouses);
+    
+    // Selecionar primeiro armazém por padrão
+    if (departmentWarehouses.length > 0) {
+      setOrderData(prev => ({ ...prev, warehouseId: departmentWarehouses[0].id!.toString() }));
+    }
+  };
 
   if (!department || !departmentThemes[department]) {
     navigate('/');
@@ -42,10 +70,19 @@ export const NewOrder: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (selectedProducts.length === 0) {
+    if (selectedItems.length === 0) {
       toast({
         title: "Erro",
-        description: "Selecione pelo menos um produto",
+        description: "Adicione pelo menos um item à encomenda",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!orderData.warehouseId) {
+      toast({
+        title: "Erro",
+        description: "Selecione um armazém de retirada",
         variant: "destructive",
       });
       return;
@@ -76,13 +113,23 @@ export const NewOrder: React.FC = () => {
         customer = { ...customer, name: customerData.name, location: customerData.location };
       }
 
+      // Buscar dados do armazém
+      const warehouse = await db.warehouses.get(parseInt(orderData.warehouseId));
+      if (!warehouse) {
+        throw new Error('Armazém não encontrado');
+      }
+
       // Criar encomenda
       const orderId = await db.orders.add({
         customerId: customer.id!,
         vendorId: user!.id!,
         vendorName: user!.username,
         department,
-        products: selectedProducts,
+        warehouseId: warehouse.id!,
+        warehouseName: warehouse.name,
+        items: selectedItems,
+        notes: orderData.notes || undefined,
+        orderDate: new Date(orderData.orderDate),
         status: 'pendente',
         createdAt: new Date(),
         updatedAt: new Date()
@@ -91,14 +138,15 @@ export const NewOrder: React.FC = () => {
       const order = await db.orders.get(orderId);
       
       // Buscar produtos para o PDF
+      const productIds = selectedItems.map(item => item.productId);
       const products = await db.products
         .where('id')
-        .anyOf(selectedProducts.map(p => p.productId))
+        .anyOf(productIds)
         .toArray();
 
       // Gerar PDF
       if (order && customer) {
-        await downloadOrderPDF(order, customer, products);
+        await downloadOrderPDF(order, customer, products, warehouse);
       }
 
       toast({
@@ -157,7 +205,7 @@ export const NewOrder: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name" className="text-base font-medium">Nome Completo *</Label>
                   <Input
@@ -185,33 +233,97 @@ export const NewOrder: React.FC = () => {
                     />
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
-                  <div className="relative">
-                    <MapPin className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
-                    <Textarea
-                      id="location"
-                      value={customerData.location}
-                      onChange={(e) => setCustomerData(prev => ({ ...prev, location: e.target.value }))}
-                      placeholder="Endereço completo ou ponto de referência"
-                      className="pl-12 text-base min-h-[88px] resize-none"
-                      required
-                      rows={3}
-                    />
-                  </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
+                <div className="relative">
+                  <MapPin className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
+                  <Textarea
+                    id="location"
+                    value={customerData.location}
+                    onChange={(e) => setCustomerData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Endereço completo ou ponto de referência"
+                    className="pl-12 text-base min-h-[88px] resize-none"
+                    required
+                    rows={3}
+                  />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Seleção de Produtos - Livro de Encomendas */}
+          {/* Dados da Encomenda */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Dados da Encomenda
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="warehouse" className="text-base font-medium">Armazém de Retirada *</Label>
+                  <div className="relative">
+                    <WarehouseIcon className="h-5 w-5 absolute left-3 top-3 text-muted-foreground z-10" />
+                    <Select value={orderData.warehouseId} onValueChange={(value) => setOrderData(prev => ({ ...prev, warehouseId: value }))}>
+                      <SelectTrigger className="pl-12 text-base min-h-[44px]">
+                        <SelectValue placeholder="Selecione o armazém" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {warehouses.map((warehouse) => (
+                          <SelectItem key={warehouse.id} value={warehouse.id!.toString()}>
+                            <div>
+                              <div className="font-medium">{warehouse.name}</div>
+                              {warehouse.address && (
+                                <div className="text-sm text-muted-foreground">{warehouse.address}</div>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="orderDate" className="text-base font-medium">Data da Encomenda *</Label>
+                  <div className="relative">
+                    <Calendar className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
+                    <Input
+                      id="orderDate"
+                      type="date"
+                      value={orderData.orderDate}
+                      onChange={(e) => setOrderData(prev => ({ ...prev, orderDate: e.target.value }))}
+                      className="pl-12 text-base min-h-[44px]"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-base font-medium">Observações</Label>
+                <Textarea
+                  id="notes"
+                  value={orderData.notes}
+                  onChange={(e) => setOrderData(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Observações adicionais sobre a encomenda (opcional)"
+                  className="text-base min-h-[88px] resize-none"
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Seleção de Produtos */}
           <ProductSelector
             department={department}
-            onProductsChange={setSelectedProducts}
+            onItemsChange={setSelectedItems}
           />
 
-          {/* Botões de Ação - Mobile Otimizado */}
+          {/* Botões de Ação */}
           <div className="flex flex-col sm:flex-row gap-3 justify-end">
             <Button 
               type="button" 
@@ -223,7 +335,7 @@ export const NewOrder: React.FC = () => {
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || selectedProducts.length === 0}
+              disabled={isSubmitting || selectedItems.length === 0}
               className="flex items-center justify-center gap-2 w-full sm:w-auto order-1 sm:order-2 min-h-[44px] text-base font-medium"
               size="lg"
               variant="premium"

@@ -4,30 +4,26 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { db, Product } from '@/lib/database';
+import { Label } from '@/components/ui/label';
+import { db, Product, OrderItem } from '@/lib/database';
 import { DepartmentType } from '@/utils/departmentThemes';
 import { Search, Plus, Trash2, Package, Box } from 'lucide-react';
 
 interface ProductSelectorProps {
   department: DepartmentType;
-  onProductsChange: (products: { productId: number; productName: string; quantity: number }[]) => void;
-}
-
-interface OrderItem {
-  productId: number;
-  productName: string;
-  quantity: number;
+  onItemsChange: (items: OrderItem[]) => void;
 }
 
 export const ProductSelector: React.FC<ProductSelectorProps> = ({
   department,
-  onProductsChange
+  onItemsChange
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [orderList, setOrderList] = useState<OrderItem[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
-  const [quantity, setQuantity] = useState('1');
+  const [boxes, setBoxes] = useState('0');
+  const [pieces, setPieces] = useState('0');
 
   useEffect(() => {
     loadProducts();
@@ -37,6 +33,7 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
     const departmentProducts = await db.products
       .where('department')
       .equals(department)
+      .and(product => product.active)
       .toArray();
     setProducts(departmentProducts);
   };
@@ -48,69 +45,80 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
     );
   }, [products, searchTerm]);
 
+  const selectedProduct = products.find(p => p.id === selectedProductId);
+
   const addToOrder = () => {
-    if (!selectedProductId || !quantity || parseInt(quantity) <= 0) return;
+    if (!selectedProductId || (!parseInt(boxes) && !parseInt(pieces))) return;
 
     const product = products.find(p => p.id === selectedProductId);
     if (!product) return;
 
-    const existingItemIndex = orderList.findIndex(item => item.productId === selectedProductId);
+    const boxesNum = parseInt(boxes) || 0;
+    const piecesNum = parseInt(pieces) || 0;
+
+    const existingItemIndex = orderItems.findIndex(item => item.productId === selectedProductId);
     
-    let newOrderList: OrderItem[];
+    let newOrderItems: OrderItem[];
     
     if (existingItemIndex >= 0) {
       // Atualizar item existente
-      newOrderList = orderList.map((item, index) => 
+      newOrderItems = orderItems.map((item, index) => 
         index === existingItemIndex 
-          ? { ...item, quantity: item.quantity + parseInt(quantity) }
+          ? { 
+              ...item, 
+              boxes: item.boxes + boxesNum,
+              pieces: item.pieces + piecesNum
+            }
           : item
       );
     } else {
       // Adicionar novo item
-      newOrderList = [
-        ...orderList,
+      newOrderItems = [
+        ...orderItems,
         {
           productId: selectedProductId,
           productName: product.name,
-          quantity: parseInt(quantity)
+          boxes: boxesNum,
+          pieces: piecesNum
         }
       ];
     }
 
-    setOrderList(newOrderList);
-    onProductsChange(newOrderList);
+    setOrderItems(newOrderItems);
+    onItemsChange(newOrderItems);
     
     // Limpar seleção
     setSelectedProductId(null);
-    setQuantity('1');
+    setBoxes('0');
+    setPieces('0');
     setSearchTerm('');
   };
 
   const removeFromOrder = (productId: number) => {
-    const newOrderList = orderList.filter(item => item.productId !== productId);
-    setOrderList(newOrderList);
-    onProductsChange(newOrderList);
+    const newOrderItems = orderItems.filter(item => item.productId !== productId);
+    setOrderItems(newOrderItems);
+    onItemsChange(newOrderItems);
   };
 
-  const updateQuantity = (productId: number, newQuantity: number) => {
-    if (newQuantity <= 0) {
+  const updateQuantity = (productId: number, newBoxes: number, newPieces: number) => {
+    if (newBoxes <= 0 && newPieces <= 0) {
       removeFromOrder(productId);
       return;
     }
 
-    const newOrderList = orderList.map(item =>
+    const newOrderItems = orderItems.map(item =>
       item.productId === productId
-        ? { ...item, quantity: newQuantity }
+        ? { ...item, boxes: Math.max(0, newBoxes), pieces: Math.max(0, newPieces) }
         : item
     );
-    setOrderList(newOrderList);
-    onProductsChange(newOrderList);
+    setOrderItems(newOrderItems);
+    onItemsChange(newOrderItems);
   };
 
   // Cálculos de totais
-  const totalItems = orderList.reduce((total, item) => total + item.quantity, 0);
-  const totalCaixas = Math.ceil(totalItems / 12); // Assumindo 12 itens por caixa
-  const totalEmbalagens = Math.ceil(totalItems / 6); // Assumindo 6 itens por embalagem
+  const totalBoxes = orderItems.reduce((total, item) => total + item.boxes, 0);
+  const totalPieces = orderItems.reduce((total, item) => total + item.pieces, 0);
+  const totalItems = orderItems.length;
 
   return (
     <div className="space-y-6">
@@ -131,11 +139,11 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
                 placeholder="Buscar produtos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 text-base" // text-base para melhor legibilidade no mobile
+                className="pl-10 text-base"
               />
             </div>
             
-            {/* Lista de produtos filtrados - Mobile friendly */}
+            {/* Lista de produtos filtrados */}
             {searchTerm && filteredProducts.length > 0 && (
               <div className="border rounded-lg max-h-40 overflow-y-auto">
                 {filteredProducts.map((product) => (
@@ -150,69 +158,97 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
                     }}
                   >
                     <div className="font-medium text-base">{product.name}</div>
-                    {product.code && (
-                      <div className="text-sm text-muted-foreground">{product.code}</div>
-                    )}
+                    <div className="flex gap-4 text-sm text-muted-foreground">
+                      {product.code && <span>Código: {product.code}</span>}
+                      {product.piecesPerBox && (
+                        <span>Peças por caixa: {product.piecesPerBox}</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
             
-            {/* Quantidade e botão adicionar - Mobile otimizado */}
-            <div className="flex gap-3">
-              <div className="flex-1">
+            {/* Informações do produto selecionado */}
+            {selectedProduct && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <h4 className="font-medium">{selectedProduct.name}</h4>
+                <div className="text-sm text-muted-foreground">
+                  {selectedProduct.code && <span>Código: {selectedProduct.code} • </span>}
+                  {selectedProduct.piecesPerBox && (
+                    <span>Peças por caixa: {selectedProduct.piecesPerBox}</span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Quantidade - Caixas e Peças */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="boxes">Caixas</Label>
                 <Input
+                  id="boxes"
                   type="number"
-                  placeholder="Quantidade"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  min="1"
+                  placeholder="0"
+                  value={boxes}
+                  onChange={(e) => setBoxes(e.target.value)}
+                  min="0"
                   className="text-base text-center font-medium"
                 />
               </div>
-              <Button 
-                onClick={addToOrder} 
-                disabled={!selectedProductId || !quantity}
-                className="flex-2 min-w-[120px] text-base font-medium"
-                size="lg"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Adicionar
-              </Button>
+              <div className="space-y-2">
+                <Label htmlFor="pieces">Peças</Label>
+                <Input
+                  id="pieces"
+                  type="number"
+                  placeholder="0"
+                  value={pieces}
+                  onChange={(e) => setPieces(e.target.value)}
+                  min="0"
+                  className="text-base text-center font-medium"
+                />
+              </div>
             </div>
+            
+            <Button 
+              onClick={addToOrder} 
+              disabled={!selectedProductId || (!parseInt(boxes) && !parseInt(pieces))}
+              className="w-full text-base font-medium"
+              size="lg"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Adicionar à Encomenda
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Lista de Encomenda (Livro de Encomendas) */}
+      {/* Lista de Encomenda */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Package className="h-5 w-5" />
-              Livro de Encomendas ({orderList.length})
+              Itens da Encomenda ({totalItems})
             </CardTitle>
             <div className="flex flex-wrap gap-2 text-sm">
               <Badge variant="outline" className="flex items-center gap-1 text-xs">
                 <Box className="h-3 w-3" />
-                {totalCaixas} caixas
+                {totalBoxes} caixas
               </Badge>
               <Badge variant="outline" className="flex items-center gap-1 text-xs">
                 <Package className="h-3 w-3" />
-                {totalEmbalagens} embalagens
-              </Badge>
-              <Badge variant="secondary" className="text-xs">
-                {totalItems} itens
+                {totalPieces} peças
               </Badge>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {orderList.length > 0 ? (
+          {orderItems.length > 0 ? (
             <div className="space-y-3">
               {/* Versão Mobile - Cards */}
               <div className="block md:hidden space-y-3">
-                {orderList.map((item, index) => (
+                {orderItems.map((item, index) => (
                   <div key={item.productId} className="border rounded-lg p-4 bg-card">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
@@ -230,15 +266,27 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Quantidade:</span>
-                      <Input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
-                        min="1"
-                        className="w-20 text-center text-base font-medium"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-sm">Caixas</Label>
+                        <Input
+                          type="number"
+                          value={item.boxes}
+                          onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, item.pieces)}
+                          min="0"
+                          className="text-center text-base font-medium"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm">Peças</Label>
+                        <Input
+                          type="number"
+                          value={item.pieces}
+                          onChange={(e) => updateQuantity(item.productId, item.boxes, parseInt(e.target.value) || 0)}
+                          min="0"
+                          className="text-center text-base font-medium"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -251,12 +299,13 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Produto</TableHead>
-                      <TableHead className="w-32 text-center">Quantidade</TableHead>
+                      <TableHead className="w-24 text-center">Caixas</TableHead>
+                      <TableHead className="w-24 text-center">Peças</TableHead>
                       <TableHead className="w-16"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orderList.map((item, index) => (
+                    {orderItems.map((item, index) => (
                       <TableRow key={item.productId}>
                         <TableCell className="font-medium text-muted-foreground">
                           {index + 1}
@@ -267,10 +316,19 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
                         <TableCell>
                           <Input
                             type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
-                            min="1"
-                            className="w-24 text-center mx-auto"
+                            value={item.boxes}
+                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, item.pieces)}
+                            min="0"
+                            className="w-20 text-center mx-auto"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={item.pieces}
+                            onChange={(e) => updateQuantity(item.productId, item.boxes, parseInt(e.target.value) || 0)}
+                            min="0"
+                            className="w-20 text-center mx-auto"
                           />
                         </TableCell>
                         <TableCell>
@@ -292,7 +350,7 @@ export const ProductSelector: React.FC<ProductSelectorProps> = ({
           ) : (
             <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="font-medium mb-2">Livro de encomendas vazio</h3>
+              <h3 className="font-medium mb-2">Nenhum item adicionado</h3>
               <p className="text-sm">
                 Use a busca acima para adicionar produtos à encomenda
               </p>
