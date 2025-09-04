@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { DepartmentCard } from '@/components/DepartmentCard';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { DepartmentType } from '@/utils/departmentThemes';
@@ -9,7 +9,7 @@ import { Plus, LogOut, History, Smartphone } from 'lucide-react';
 import { SEO } from '@/components/SEO';
 
 export const VendorDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { profile, signOut } = useAuth();
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentType | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
@@ -41,7 +41,7 @@ export const VendorDashboard: React.FC = () => {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <CardTitle className="text-2xl">
-                    Olá, {user?.username}! 👋
+                    Olá, {profile?.name}! 👋
                   </CardTitle>
                   <p className="text-muted-foreground">
                     Bem-vindo ao sistema de encomendas
@@ -57,7 +57,7 @@ export const VendorDashboard: React.FC = () => {
                     <span className="hidden sm:inline">Instalar App</span>
                     <span className="sm:hidden">App Mobile</span>
                   </Button>
-                  <Button variant="outline" onClick={logout}>
+                  <Button variant="outline" onClick={signOut}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Sair
                   </Button>

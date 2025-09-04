@@ -4,9 +4,10 @@ interface SEOProps {
   title: string;
   description?: string;
   canonical?: string;
+  keywords?: string;
 }
 
-export const SEO: React.FC<SEOProps> = ({ title, description, canonical }) => {
+export const SEO: React.FC<SEOProps> = ({ title, description, canonical, keywords }) => {
   useEffect(() => {
     // Title
     document.title = title;
@@ -39,6 +40,17 @@ export const SEO: React.FC<SEOProps> = ({ title, description, canonical }) => {
       ogDesc.setAttribute('content', description);
     }
 
+    // Keywords
+    if (keywords) {
+      let meta = document.querySelector('meta[name="keywords"]') as HTMLMetaElement | null;
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'keywords');
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', keywords);
+    }
+
     // Canonical
     const url = canonical || (typeof window !== 'undefined' ? window.location.href : undefined);
     if (url) {
@@ -50,7 +62,7 @@ export const SEO: React.FC<SEOProps> = ({ title, description, canonical }) => {
       }
       link.setAttribute('href', url);
     }
-  }, [title, description, canonical]);
+  }, [title, description, canonical, keywords]);
 
   return null;
 };
