@@ -84,26 +84,14 @@ export const VendorDashboard: React.FC = () => {
                   <DepartmentCard
                     key={dept}
                     department={dept}
-                    onClick={() => setSelectedDepartment(dept)}
-                    isSelected={selectedDepartment === dept}
+                    onClick={() => {
+                      // Navegar diretamente para nova encomenda
+                      window.location.href = `/nova-encomenda/${dept}`;
+                    }}
+                    isSelected={false}
                   />
                 ))}
               </div>
-              
-              {selectedDepartment && (
-                <div className="mt-6 flex justify-center">
-                  <Button 
-                    size="lg"
-                    variant="premium"
-                    onClick={() => {
-                      // Navegar para página de nova encomenda
-                      window.location.href = `/nova-encomenda/${selectedDepartment}`;
-                    }}
-                  >
-                    Criar Encomenda - {selectedDepartment}
-                  </Button>
-                </div>
-              )}
             </CardContent>
           </Card>
 

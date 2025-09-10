@@ -94,33 +94,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string, name?: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          name: name || email
-        }
-      }
+    // Registration disabled - only pre-registered users
+    toast({
+      title: "Cadastro não permitido",
+      description: "Apenas usuários pré-registrados podem acessar o sistema.",
+      variant: "destructive",
     });
-
-    if (error) {
-      toast({
-        title: "Erro no cadastro",
-        description: error.message,
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "Cadastro realizado",
-        description: "Verifique seu email para confirmar a conta",
-      });
-    }
-
-    return { error };
+    return { error: new Error('Registration disabled') };
   };
 
   const signIn = async (email: string, password: string) => {

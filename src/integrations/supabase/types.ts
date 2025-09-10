@@ -275,6 +275,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_auth_user_by_email: {
+        Args: { user_email: string }
+        Returns: string
+      }
       get_user_department: {
         Args: { user_uuid: string }
         Returns: string

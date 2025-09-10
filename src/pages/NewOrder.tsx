@@ -7,33 +7,45 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProductSelector } from '@/components/ProductSelector';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { db, Customer, Order, OrderItem, Warehouse } from '@/lib/database';
+import { queries } from '@/lib/supabase-queries';
 import { DepartmentType, departmentThemes } from '@/utils/departmentThemes';
 import { downloadOrderPDF } from '@/utils/pdfGenerator';
 import { ArrowLeft, User, Phone, MapPin, Download, Warehouse as WarehouseIcon, Calendar, FileText } from 'lucide-react';
 import { SEO } from '@/components/SEO';
+import { supabase } from '@/integrations/supabase/client';
+
+interface NewOrderItem {
+  product_id: string;
+  quantity: number;
+  price: number;
+}
+
+interface Warehouse {
+  id: string;
+  name: string;
+  department: string;
+}
 
 export const NewOrder: React.FC = () => {
   const { department } = useParams<{ department: DepartmentType }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
 
   const [customerData, setCustomerData] = useState({
     name: '',
     phone: '',
-    location: ''
+    address: ''
   });
 
   const [orderData, setOrderData] = useState({
     warehouseId: '',
-    orderDate: new Date().toISOString().split('T')[0], // Data atual
     notes: ''
   });
 
-  const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<NewOrderItem[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,20 +55,47 @@ export const NewOrder: React.FC = () => {
     }
   }, [department]);
 
+  // Real-time product updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        () => {
+          // Product updates - ProductSelector will handle this automatically
+          console.log('Products updated in real-time');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const loadWarehouses = async () => {
     if (!department) return;
     
-    const departmentWarehouses = await db.warehouses
-      .where('department')
-      .equals(department)
-      .and(warehouse => warehouse.active)
-      .toArray();
-    
-    setWarehouses(departmentWarehouses);
-    
-    // Selecionar primeiro armazém por padrão
-    if (departmentWarehouses.length > 0) {
-      setOrderData(prev => ({ ...prev, warehouseId: departmentWarehouses[0].id!.toString() }));
+    try {
+      const departmentWarehouses = await queries.getWarehousesByDepartment(department);
+      setWarehouses(departmentWarehouses);
+      
+      // Select first warehouse by default
+      if (departmentWarehouses.length > 0) {
+        setOrderData(prev => ({ ...prev, warehouseId: departmentWarehouses[0].id }));
+      }
+    } catch (error) {
+      console.error('Error loading warehouses:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar armazéns",
+        variant: "destructive",
+      });
     }
   };
 
@@ -91,70 +130,58 @@ export const NewOrder: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Criar ou encontrar cliente
-      let customer = await db.customers
-        .where('phone')
-        .equals(customerData.phone)
-        .first();
-
-      if (!customer) {
-        const customerId = await db.customers.add({
-          name: customerData.name,
-          phone: customerData.phone,
-          location: customerData.location
-        });
-        customer = await db.customers.get(customerId);
-      } else {
-        // Atualizar dados do cliente se necessário
-        await db.customers.update(customer.id!, {
-          name: customerData.name,
-          location: customerData.location
-        });
-        customer = { ...customer, name: customerData.name, location: customerData.location };
+      // Create or find customer
+      let customer;
+      if (customerData.phone) {
+        const existingCustomers = await queries.getCustomers();
+        customer = existingCustomers.find(c => c.phone === customerData.phone);
       }
 
-      // Buscar dados do armazém
-      const warehouse = await db.warehouses.get(parseInt(orderData.warehouseId));
+      if (!customer) {
+        customer = await queries.createCustomer({
+          name: customerData.name,
+          phone: customerData.phone,
+          address: customerData.address
+        });
+      }
+
+      // Calculate total
+      const total = selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+
+      // Create order
+      const order = await queries.createOrder({
+        customer_id: customer.id,
+        department,
+        total,
+        notes: orderData.notes || undefined,
+        items: selectedItems
+      });
+
+      // Get warehouse data
+      const warehouse = warehouses.find(w => w.id === orderData.warehouseId);
       if (!warehouse) {
         throw new Error('Armazém não encontrado');
       }
 
-      // Criar encomenda
-      const orderId = await db.orders.add({
-        customerId: customer.id!,
-        vendorId: user!.id!,
-        vendorName: user!.username,
-        department,
-        warehouseId: warehouse.id!,
-        warehouseName: warehouse.name,
-        items: selectedItems,
-        notes: orderData.notes || undefined,
-        orderDate: new Date(orderData.orderDate),
-        status: 'pendente',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-
-      const order = await db.orders.get(orderId);
+      // Get products for PDF
+      const products = await queries.getProductsByDepartment(department);
       
-      // Buscar produtos para o PDF
-      const productIds = selectedItems.map(item => item.productId);
-      const products = await db.products
-        .where('id')
-        .anyOf(productIds)
-        .toArray();
-
-      // Gerar PDF
-      if (order && customer) {
-        await downloadOrderPDF(order, customer, products, warehouse);
-      }
+      // Generate PDF
+      await downloadOrderPDF(
+        order,
+        customer,
+        products,
+        warehouse,
+        selectedItems,
+        profile?.name || 'Vendedor'
+      );
 
       toast({
         title: "Encomenda criada!",
         description: "PDF gerado com sucesso",
       });
 
-      // Voltar para o dashboard
+      // Navigate back to dashboard
       navigate('/');
 
     } catch (error) {
@@ -196,7 +223,7 @@ export const NewOrder: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Dados do Cliente */}
+          {/* Customer Data */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -236,13 +263,13 @@ export const NewOrder: React.FC = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
+                <Label htmlFor="address" className="text-base font-medium">Endereço *</Label>
                 <div className="relative">
                   <MapPin className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
                   <Textarea
-                    id="location"
-                    value={customerData.location}
-                    onChange={(e) => setCustomerData(prev => ({ ...prev, location: e.target.value }))}
+                    id="address"
+                    value={customerData.address}
+                    onChange={(e) => setCustomerData(prev => ({ ...prev, address: e.target.value }))}
                     placeholder="Endereço completo ou ponto de referência"
                     className="pl-12 text-base min-h-[88px] resize-none"
                     required
@@ -253,7 +280,7 @@ export const NewOrder: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Dados da Encomenda */}
+          {/* Order Data */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -273,12 +300,9 @@ export const NewOrder: React.FC = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {warehouses.map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id!.toString()}>
+                          <SelectItem key={warehouse.id} value={warehouse.id}>
                             <div>
                               <div className="font-medium">{warehouse.name}</div>
-                              {warehouse.address && (
-                                <div className="text-sm text-muted-foreground">{warehouse.address}</div>
-                              )}
                             </div>
                           </SelectItem>
                         ))}
@@ -288,16 +312,13 @@ export const NewOrder: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="orderDate" className="text-base font-medium">Data da Encomenda *</Label>
+                  <Label className="text-base font-medium">Vendedor</Label>
                   <div className="relative">
-                    <Calendar className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
+                    <User className="h-5 w-5 absolute left-3 top-3 text-muted-foreground" />
                     <Input
-                      id="orderDate"
-                      type="date"
-                      value={orderData.orderDate}
-                      onChange={(e) => setOrderData(prev => ({ ...prev, orderDate: e.target.value }))}
-                      className="pl-12 text-base min-h-[44px]"
-                      required
+                      value={profile?.name || 'Carregando...'}
+                      className="pl-12 text-base min-h-[44px] bg-muted"
+                      disabled
                     />
                   </div>
                 </div>
@@ -317,13 +338,13 @@ export const NewOrder: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Seleção de Produtos */}
+          {/* Product Selection */}
           <ProductSelector
             department={department}
             onItemsChange={setSelectedItems}
           />
 
-          {/* Botões de Ação */}
+          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 justify-end">
             <Button 
               type="button" 
