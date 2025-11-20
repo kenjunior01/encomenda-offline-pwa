@@ -7,11 +7,13 @@ import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { queries, Product, User, Warehouse, Order } from '@/lib/supabase-queries';
 import { departmentThemes } from '@/utils/departmentThemes';
-import { LogOut, Package, BarChart, Users, Building } from 'lucide-react';
+import { LogOut, Package, BarChart, Users, Building, Shield } from 'lucide-react';
 import { SEO } from '@/components/SEO';
+import { useNavigate } from 'react-router-dom';
 
 export const AdminDashboard: React.FC = () => {
   const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -122,10 +124,18 @@ export const AdminDashboard: React.FC = () => {
                 {isAdmin ? 'Gerencie todo o sistema' : 'Gerencie produtos, usuários e relatórios'}
               </p>
             </div>
-            <Button variant="secondary" onClick={signOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </Button>
+            <div className="flex gap-2">
+              {isAdmin && (
+                <Button variant="secondary" onClick={() => navigate('/permissoes')}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  Permissões
+                </Button>
+              )}
+              <Button variant="secondary" onClick={signOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
           </div>
         </div>
 

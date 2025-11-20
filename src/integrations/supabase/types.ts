@@ -216,6 +216,48 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department: string | null
+          id: string
+          permission: Database["public"]["Enums"]["permission_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          id?: string
+          permission: Database["public"]["Enums"]["permission_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          id?: string
+          permission?: Database["public"]["Enums"]["permission_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           auth_user_id: string | null
@@ -281,9 +323,43 @@ export type Database = {
         Args: { user_uuid: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      user_has_permission: {
+        Args: {
+          _department?: string
+          _permission: Database["public"]["Enums"]["permission_type"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       order_status: "pendente" | "aprovada" | "rejeitada" | "entregue"
+      permission_type:
+        | "view_orders"
+        | "create_orders"
+        | "edit_orders"
+        | "delete_orders"
+        | "approve_orders"
+        | "reject_orders"
+        | "view_products"
+        | "create_products"
+        | "edit_products"
+        | "delete_products"
+        | "view_customers"
+        | "create_customers"
+        | "edit_customers"
+        | "delete_customers"
+        | "view_users"
+        | "create_users"
+        | "edit_users"
+        | "delete_users"
+        | "view_warehouses"
+        | "create_warehouses"
+        | "edit_warehouses"
+        | "delete_warehouses"
+        | "view_reports"
+        | "export_data"
+        | "manage_permissions"
       user_role: "admin" | "supervisor" | "vendedor"
     }
     CompositeTypes: {
@@ -413,6 +489,33 @@ export const Constants = {
   public: {
     Enums: {
       order_status: ["pendente", "aprovada", "rejeitada", "entregue"],
+      permission_type: [
+        "view_orders",
+        "create_orders",
+        "edit_orders",
+        "delete_orders",
+        "approve_orders",
+        "reject_orders",
+        "view_products",
+        "create_products",
+        "edit_products",
+        "delete_products",
+        "view_customers",
+        "create_customers",
+        "edit_customers",
+        "delete_customers",
+        "view_users",
+        "create_users",
+        "edit_users",
+        "delete_users",
+        "view_warehouses",
+        "create_warehouses",
+        "edit_warehouses",
+        "delete_warehouses",
+        "view_reports",
+        "export_data",
+        "manage_permissions",
+      ],
       user_role: ["admin", "supervisor", "vendedor"],
     },
   },
