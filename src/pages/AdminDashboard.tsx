@@ -10,6 +10,7 @@ import { departmentThemes } from '@/utils/departmentThemes';
 import { LogOut, Package, BarChart, Users, Building, Shield } from 'lucide-react';
 import { SEO } from '@/components/SEO';
 import { useNavigate } from 'react-router-dom';
+import { ProductImporter } from '@/components/ProductImporter';
 
 export const AdminDashboard: React.FC = () => {
   const { profile, signOut } = useAuth();
@@ -223,6 +224,8 @@ export const AdminDashboard: React.FC = () => {
 
           {/* Lista de Produtos */}
           <TabsContent value="products" className="space-y-6">
+            {isAdmin && <ProductImporter />}
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
