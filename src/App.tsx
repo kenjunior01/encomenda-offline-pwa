@@ -9,6 +9,7 @@ import { VendorDashboard } from '@/pages/VendorDashboard';
 import { AdminDashboard } from '@/pages/AdminDashboard';
 import { NewOrder } from '@/pages/NewOrder';
 import { OrderHistory } from '@/pages/OrderHistory';
+import PermissionsManager from '@/pages/PermissionsManager';
 import NotFound from '@/pages/NotFound';
 import { Auth } from '@/pages/Auth';
 
@@ -43,9 +44,10 @@ const AppRoutes = () => {
       <Route path="/" element={
         profile.role === 'admin' ? <AdminDashboard /> : <VendorDashboard />
       } />
-      <Route path="/nova-encomenda/:department" element={<NewOrder />} />
-      <Route path="/historico" element={<OrderHistory />} />
-      <Route path="*" element={<NotFound />} />
+          <Route path="/nova-encomenda/:department" element={<NewOrder />} />
+          <Route path="/historico" element={<OrderHistory />} />
+          <Route path="/permissoes" element={<PermissionsManager />} />
+          <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };
