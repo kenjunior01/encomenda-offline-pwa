@@ -12,6 +12,7 @@ import { OrderHistory } from '@/pages/OrderHistory';
 import PermissionsManager from '@/pages/PermissionsManager';
 import NotFound from '@/pages/NotFound';
 import { Auth } from '@/pages/Auth';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => {
         <AuthProvider>
           <BrowserRouter>
             <AppRoutes />
+            <OfflineIndicator />
             <Toaster />
             <Sonner />
           </BrowserRouter>
