@@ -123,9 +123,11 @@ export const Auth = () => {
           <p className="text-sm text-muted-foreground">
             Sistema de registro de encomendas por departamentos
           </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Usuários pré-registrados: seller@maputo.dimd, seller@beira.dimd, seller@nampula.dimd, admin@mz.dimd, manager@mz.dimd, manager@maputo.dimd
-          </p>
+          {import.meta.env.DEV && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Demo: seller@maputo.dimd, admin@mz.dimd
+            </p>
+          )}
         </div>
       </div>
     </div>
