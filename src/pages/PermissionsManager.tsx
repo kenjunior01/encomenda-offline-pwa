@@ -15,7 +15,7 @@ interface User {
   id: string;
   name: string;
   username: string;
-  role: string;
+  role?: string;
   department: string | null;
 }
 
@@ -66,12 +66,23 @@ export default function PermissionsManager() {
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: usersData, error } = await supabase
         .from('users')
         .select('*')
         .order('name');
       if (error) throw error;
-      return data as User[];
+      
+      // Fetch roles
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+      
+      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      
+      return usersData.map(user => ({
+        ...user,
+        role: roleMap.get(user.auth_user_id) || 'vendedor'
+      })) as User[];
     },
   });
 

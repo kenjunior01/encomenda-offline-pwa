@@ -3,12 +3,13 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
+type AppRole = 'admin' | 'supervisor' | 'vendedor';
+
 interface UserProfile {
   id: string;
   auth_user_id: string;
   username: string;
   name: string;
-  role: 'admin' | 'supervisor' | 'vendedor';
   department: string;
   created_at: string;
   updated_at: string;
@@ -17,7 +18,7 @@ interface UserProfile {
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  profile: UserProfile | null;
+  profile: (UserProfile & { role: AppRole }) | null;
   isLoading: boolean;
   signUp: (email: string, password: string, name?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -37,19 +38,37 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<(UserProfile & { role: AppRole }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // Fetch user profile
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('auth_user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setProfile(data);
+      if (userError) throw userError;
+      if (!userData) {
+        setProfile(null);
+        return;
+      }
+
+      // Fetch user role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (roleError) throw roleError;
+
+      setProfile({
+        ...userData,
+        role: (roleData?.role as AppRole) || 'vendedor'
+      });
     } catch (error) {
       console.error('Erro ao buscar perfil:', error);
       setProfile(null);
@@ -59,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -94,13 +113,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signUp = async (email: string, password: string, name?: string) => {
-    // Registration disabled - only pre-registered users
-    toast({
-      title: "Cadastro não permitido",
-      description: "Apenas usuários pré-registrados podem acessar o sistema.",
-      variant: "destructive",
+    const redirectUrl = `${window.location.origin}/`;
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: { name: name || email }
+      }
     });
-    return { error: new Error('Registration disabled') };
+
+    if (error) {
+      toast({
+        title: "Erro no cadastro",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Conta criada!",
+        description: "Você foi registrado com sucesso.",
+      });
+    }
+
+    return { error };
   };
 
   const signIn = async (email: string, password: string) => {

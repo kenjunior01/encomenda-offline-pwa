@@ -6,7 +6,7 @@ export interface User {
   auth_user_id: string;
   username: string;
   name: string;
-  role: 'admin' | 'supervisor' | 'vendedor';
+  role?: 'admin' | 'supervisor' | 'vendedor';
   department: string;
   created_at: string;
   updated_at: string;
@@ -19,6 +19,7 @@ export interface Product {
   price: number;
   department: string;
   warehouse_id?: string;
+  pieces_per_box?: number;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -28,6 +29,8 @@ export interface Warehouse {
   id: string;
   name: string;
   department: string;
+  location?: string;
+  active: boolean;
   created_at: string;
 }
 
@@ -37,6 +40,7 @@ export interface Customer {
   email?: string;
   phone?: string;
   address?: string;
+  nuit?: string;
   created_at: string;
 }
 
@@ -44,8 +48,9 @@ export interface Order {
   id: string;
   customer_id?: string;
   user_id: string;
+  warehouse_id?: string;
   department: string;
-  status: 'pendente' | 'aprovada' | 'rejeitada' | 'entregue';
+  status: 'pendente' | 'aprovado' | 'rejeitado' | 'concluido';
   total: number;
   notes?: string;
   created_at: string;
@@ -59,6 +64,8 @@ export interface OrderItem {
   order_id: string;
   product_id: string;
   quantity: number;
+  boxes?: number;
+  pieces?: number;
   price: number;
   created_at: string;
   product?: Product;
@@ -68,8 +75,8 @@ export interface Announcement {
   id: string;
   title: string;
   content: string;
-  type: string;
   created_by?: string;
+  active: boolean;
   created_at: string;
   expires_at?: string;
 }
@@ -85,18 +92,42 @@ export const queries = {
       .from('users')
       .select('*')
       .eq('auth_user_id', user.id)
-      .single();
+      .maybeSingle();
     
-    return data;
+    if (!data) return null;
+
+    // Fetch role from user_roles table
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    return {
+      ...data,
+      role: roleData?.role || 'vendedor'
+    } as User;
   },
 
-  async getAllUsers() {
-    const { data } = await supabase
+  async getAllUsers(): Promise<User[]> {
+    const { data: users } = await supabase
       .from('users')
       .select('*')
       .order('name');
     
-    return data || [];
+    if (!users || users.length === 0) return [];
+
+    // Fetch roles for all users
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('user_id, role');
+
+    const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+
+    return users.map(user => ({
+      ...user,
+      role: (roleMap.get(user.auth_user_id) || 'vendedor') as User['role']
+    }));
   },
 
   // Products
@@ -132,6 +163,7 @@ export const queries = {
     const { data } = await supabase
       .from('warehouses')
       .select('*')
+      .eq('active', true)
       .order('name');
     
     return data || [];
@@ -142,6 +174,7 @@ export const queries = {
       .from('warehouses')
       .select('*')
       .eq('department', department)
+      .eq('active', true)
       .order('name');
     
     return data || [];
@@ -168,7 +201,7 @@ export const queries = {
   },
 
   // Orders
-  async getOrders() {
+  async getOrders(): Promise<Order[]> {
     const { data } = await supabase
       .from('orders')
       .select(`
@@ -181,17 +214,20 @@ export const queries = {
       `)
       .order('created_at', { ascending: false });
     
-    return data || [];
+    return (data || []) as Order[];
   },
 
   async createOrder(order: {
     customer_id?: string;
     department: string;
+    warehouse_id?: string;
     total: number;
     notes?: string;
     items: Array<{
       product_id: string;
       quantity: number;
+      boxes?: number;
+      pieces?: number;
       price: number;
     }>;
   }) {
@@ -205,6 +241,7 @@ export const queries = {
         customer_id: order.customer_id,
         user_id: currentUser.id,
         department: order.department,
+        warehouse_id: order.warehouse_id,
         total: order.total,
         notes: order.notes
       }])
@@ -218,6 +255,8 @@ export const queries = {
       order_id: newOrder.id,
       product_id: item.product_id,
       quantity: item.quantity,
+      boxes: item.boxes || 0,
+      pieces: item.pieces || 0,
       price: item.price
     }));
 
@@ -246,13 +285,14 @@ export const queries = {
     const { data } = await supabase
       .from('announcements')
       .select('*')
+      .eq('active', true)
       .or('expires_at.is.null,expires_at.gt.now()')
       .order('created_at', { ascending: false });
     
     return data || [];
   },
 
-  async createAnnouncement(announcement: Omit<Announcement, 'id' | 'created_at' | 'created_by'>) {
+  async createAnnouncement(announcement: Omit<Announcement, 'id' | 'created_at' | 'created_by' | 'active'>) {
     const currentUser = await queries.getCurrentUser();
     if (!currentUser) throw new Error('User not authenticated');
 
