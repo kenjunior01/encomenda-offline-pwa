@@ -44,10 +44,12 @@ const AppRoutes = () => {
       <Route path="/" element={
         profile.role === 'admin' ? <AdminDashboard /> : <VendorDashboard />
       } />
-          <Route path="/nova-encomenda/:department" element={<NewOrder />} />
-          <Route path="/historico" element={<OrderHistory />} />
-          <Route path="/permissoes" element={<PermissionsManager />} />
-          <Route path="*" element={<NotFound />} />
+      <Route path="/nova-encomenda/:department" element={<NewOrder />} />
+      <Route path="/historico" element={<OrderHistory />} />
+      <Route path="/permissoes" element={
+        profile.role === 'admin' ? <PermissionsManager /> : <Navigate to="/" replace />
+      } />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };
