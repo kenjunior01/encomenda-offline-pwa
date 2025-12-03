@@ -205,8 +205,8 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                         <Badge variant={
                           order.status === 'pendente' ? 'secondary' :
-                          order.status === 'aprovada' ? 'default' : 
-                          order.status === 'entregue' ? 'default' : 'destructive'
+                          order.status === 'aprovado' ? 'default' : 
+                          order.status === 'concluido' ? 'default' : 'destructive'
                         }>
                           {order.status}
                         </Badge>
@@ -368,8 +368,8 @@ export const AdminDashboard: React.FC = () => {
                               <Badge variant="outline">{order.department}</Badge>
                               <Badge variant={
                                 order.status === 'pendente' ? 'secondary' :
-                                order.status === 'aprovada' ? 'default' : 
-                                order.status === 'entregue' ? 'default' : 'destructive'
+                                order.status === 'aprovado' ? 'default' : 
+                                order.status === 'concluido' ? 'default' : 'destructive'
                               }>
                                 {order.status}
                               </Badge>
